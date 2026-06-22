@@ -1,0 +1,26 @@
+<Project>
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Runtime dependencies of the SDK -->
+    <PackageVersion Include="Grpc.Net.Client" Version="2.65.0" />
+    <PackageVersion Include="Google.Protobuf" Version="3.27.2" />
+    <!-- Build-time only (codegen); not a runtime dependency -->
+    <PackageVersion Include="Grpc.Tools" Version="2.65.0" />
+    <!-- In-box on net8.0; referenced only for the netstandard2.1 target -->
+    <PackageVersion Include="System.Threading.Channels" Version="8.0.0" />
+    <PackageVersion Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Test-only dependencies -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageVersion Include="xunit" Version="2.8.1" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.1" />
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.65.0" />
+  </ItemGroup>
+
+</Project>

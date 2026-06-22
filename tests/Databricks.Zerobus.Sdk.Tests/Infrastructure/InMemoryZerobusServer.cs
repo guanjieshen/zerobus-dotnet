@@ -1,0 +1,94 @@
+using Databricks.Zerobus.TestProto;
+using Grpc.Core;
+
+namespace Databricks.Zerobus.Tests.Infrastructure;
+
+/// <summary>
+/// An in-memory implementation of the Zerobus gRPC service for end-to-end tests.
+/// Handles the create handshake and emits cumulative durability acks, with optional
+/// fault injection driven by <see cref="ServerBehavior"/>.
+/// </summary>
+public sealed class InMemoryZerobusServer : Databricks.Zerobus.TestProto.Zerobus.ZerobusBase
+{
+    private readonly ServerBehavior _behavior;
+
+    public InMemoryZerobusServer(ServerBehavior behavior) => _behavior = behavior;
+
+    public override async Task EphemeralStream(
+        IAsyncStreamReader<EphemeralStreamRequest> requestStream,
+        IServerStreamWriter<EphemeralStreamResponse> responseStream,
+        ServerCallContext context)
+    {
+        var connectionId = Interlocked.Increment(ref _behavior.ConnectionCount);
+        long maxOffset = -1;
+        var recordsThisConnection = 0;
+
+        await foreach (var message in requestStream.ReadAllAsync(context.CancellationToken))
+        {
+            switch (message.PayloadCase)
+            {
+                case EphemeralStreamRequest.PayloadOneofCase.CreateStream:
+                    _behavior.LastDescriptorProto = message.CreateStream.HasDescriptorProto
+                        ? message.CreateStream.DescriptorProto.ToByteArray()
+                        : null;
+                    _behavior.LastRecordType = (int)message.CreateStream.RecordType;
+                    await responseStream.WriteAsync(new EphemeralStreamResponse
+                    {
+                        CreateStreamResponse = new CreateIngestStreamResponse { StreamId = $"test-stream-{connectionId}" },
+                    });
+                    break;
+
+                case EphemeralStreamRequest.PayloadOneofCase.IngestRecord:
+                {
+                    var record = message.IngestRecord;
+                    Interlocked.Increment(ref _behavior.TotalReceived);
+                    _behavior.ReceivedOffsets[record.OffsetId] = 1;
+                    if (record.RecordCase == IngestRecordRequest.RecordOneofCase.JsonRecord)
+                        _behavior.JsonByOffset[record.OffsetId] = record.JsonRecord;
+                    else if (record.RecordCase == IngestRecordRequest.RecordOneofCase.ProtoEncodedRecord)
+                        _behavior.ProtoByOffset[record.OffsetId] = record.ProtoEncodedRecord.ToByteArray();
+
+                    maxOffset = Math.Max(maxOffset, record.OffsetId);
+                    recordsThisConnection++;
+
+                    if (connectionId == 1 &&
+                        _behavior.AbortFirstConnectionAfterRecords is int abortAt &&
+                        recordsThisConnection >= abortAt)
+                    {
+                        throw new RpcException(new Status(StatusCode.Unavailable, "simulated disconnect"));
+                    }
+
+                    await responseStream.WriteAsync(new EphemeralStreamResponse
+                    {
+                        IngestRecordResponse = new IngestRecordResponse { DurabilityAckUpToOffset = maxOffset },
+                    });
+
+                    if (connectionId == 1 &&
+                        _behavior.CloseSignalAfterRecords is int closeAt &&
+                        recordsThisConnection >= closeAt)
+                    {
+                        await responseStream.WriteAsync(new EphemeralStreamResponse
+                        {
+                            CloseStreamSignal = new CloseStreamSignal(),
+                        });
+                    }
+                    break;
+                }
+
+                case EphemeralStreamRequest.PayloadOneofCase.IngestRecordBatch:
+                {
+                    var batch = message.IngestRecordBatch;
+                    Interlocked.Increment(ref _behavior.TotalReceived);
+                    _behavior.ReceivedOffsets[batch.OffsetId] = 1;
+                    maxOffset = Math.Max(maxOffset, batch.OffsetId);
+                    recordsThisConnection++;
+                    await responseStream.WriteAsync(new EphemeralStreamResponse
+                    {
+                        IngestRecordResponse = new IngestRecordResponse { DurabilityAckUpToOffset = maxOffset },
+                    });
+                    break;
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,20 @@
+## .NET build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+.vs/
+
+## NuGet
+*.nupkg
+*.snupkg
+artifacts/
+
+## Rider / VS Code
+.idea/
+.vscode/
+
+## OS
+.DS_Store

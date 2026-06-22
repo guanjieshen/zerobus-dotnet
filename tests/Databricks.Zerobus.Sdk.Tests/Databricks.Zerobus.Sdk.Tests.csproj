@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Databricks.Zerobus.Tests</RootNamespace>
+    <AssemblyName>Databricks.Zerobus.Sdk.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <!-- Generated gRPC code triggers some doc/nullable warnings we don't treat as errors in tests. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- Test-only: host the in-memory Zerobus server with ASP.NET Core + a generated SERVER stub.
+       A separate csharp_namespace keeps these types from colliding with the SDK's client stub. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Protobuf Include="Protos/zerobus_service_test.proto" GrpcServices="Server" ProtoRoot="Protos" />
+    <Protobuf Include="Protos/air_quality.proto" GrpcServices="None" ProtoRoot="Protos" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Databricks.Zerobus.Sdk/Databricks.Zerobus.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

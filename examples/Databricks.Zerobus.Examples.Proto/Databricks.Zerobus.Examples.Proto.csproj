@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- Compile the record .proto into message classes (no gRPC service). -->
+  <ItemGroup>
+    <Protobuf Include="Protos/air_quality.proto" GrpcServices="None" ProtoRoot="Protos" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Databricks.Zerobus.Sdk/Databricks.Zerobus.Sdk.csproj" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

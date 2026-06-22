@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;netstandard2.1</TargetFrameworks>
+    <RootNamespace>Databricks.Zerobus</RootNamespace>
+    <AssemblyName>Databricks.Zerobus.Sdk</AssemblyName>
+
+    <!-- NuGet package metadata -->
+    <PackageId>Databricks.Zerobus.Sdk</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>guanjieshen</Authors>
+    <Description>Pure-managed .NET client library for Databricks Zerobus Ingest — stream records directly into Unity Catalog Delta tables over gRPC.</Description>
+    <PackageTags>databricks;zerobus;ingest;grpc;streaming;delta;unity-catalog</PackageTags>
+    <PackageProjectUrl>https://github.com/guanjieshen/zerbus-dotnet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/guanjieshen/zerbus-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compile the vendored wire contract into an INTERNAL gRPC client only.
+         The hand-written async API in this assembly is the only public surface. -->
+    <Protobuf Include="Protos/zerobus_service.proto"
+              GrpcServices="Client"
+              ProtoRoot="Protos"
+              Access="Internal" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- These are in-box on net8.0; the netstandard2.1 target needs the packages. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+    <PackageReference Include="System.Threading.Channels" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Databricks.Zerobus.Sdk.Tests" />
+  </ItemGroup>
+
+</Project>
