@@ -16,6 +16,12 @@ namespace Databricks.Zerobus;
 /// <c>scope=all-apis</c>, a Zerobus <c>resource</c> indicator, and an
 /// <c>authorization_details</c> request scoping USE CATALOG / USE SCHEMA / SELECT+MODIFY
 /// (operation <c>zerobuswrite</c>) to the catalog, schema, and table.
+/// <para>
+/// This works for both Databricks-managed and Microsoft Entra ID service principals. An Entra ID
+/// service principal needs a Databricks OAuth secret (generated under Settings, Identity and
+/// access, Service principals, Secrets); pass its application (client) ID and that secret. This is
+/// the token endpoint Databricks recommends for M2M, on both AWS and Azure workspaces.
+/// </para>
 /// </remarks>
 public sealed class OAuthTokenProvider : ITokenProvider, IDisposable
 {

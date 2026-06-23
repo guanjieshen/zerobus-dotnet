@@ -23,6 +23,9 @@ All notable changes to this project are documented here. The format is based on
 - Per-offset `IAckCallback.OnError(long offset, Exception)` (was a single stream-level callback).
 - `zerobus-generate-proto` dotnet tool (`tools/Databricks.Zerobus.ProtoGen`) that generates a
   `.proto` from a Unity Catalog table, mirroring `python -m zerobus.tools.generate_proto`.
+- `DelegatingTokenProvider` for supplying tokens from a custom source (Azure.Identity, managed
+  identity, the Databricks SDK, etc.). The built-in OAuth flow already covers both Databricks-managed
+  and Microsoft Entra ID service principals (an Entra SP needs a Databricks OAuth secret).
 - `netstandard2.1` and `net8.0` targets.
 
 ### Changed
