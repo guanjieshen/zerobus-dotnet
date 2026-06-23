@@ -1,0 +1,49 @@
+name: Release
+
+# Publishes to NuGet.org when a version tag (e.g. v0.1.0) is pushed.
+# Uses NuGet.org Trusted Publishing (OIDC) -- no long-lived API key is stored.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write          # required to request the OIDC token for trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: release    # optional: add required reviewers in repo settings to gate releases
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test (must pass before publishing)
+        run: dotnet test -c Release --no-build --verbosity normal
+
+      - name: Pack
+        run: dotnet pack src/Databricks.Zerobus.Sdk/Databricks.Zerobus.Sdk.csproj -c Release --no-build -o artifacts
+
+      - name: NuGet trusted-publishing login (OIDC -> short-lived key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ vars.NUGET_USER }}     # your NuGet.org account name (set as a repo variable)
+
+      - name: Push to NuGet.org
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
