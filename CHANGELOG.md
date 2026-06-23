@@ -18,7 +18,16 @@ All notable changes to this project are documented here. The format is based on
   number of parallel connections (`BulkWriterOptions.Parallelism`).
 - Interface-based public API (`IZerobusSdk`, `IZerobusStream<T>`, `IZerobusJsonStream`,
   `IZerobusBulkWriter<T>`, `IZerobusJsonBulkWriter`) for dependency injection and testing.
+- `GetUnacknowledgedRecords()` / `GetUnacknowledgedBatches()` on streams and bulk writers, for
+  custom retry after a terminal failure (parity with the Python SDK's `get_unacked_*`).
+- Per-offset `IAckCallback.OnError(long offset, Exception)` (was a single stream-level callback).
+- `zerobus-generate-proto` dotnet tool (`tools/Databricks.Zerobus.ProtoGen`) that generates a
+  `.proto` from a Unity Catalog table, mirroring `python -m zerobus.tools.generate_proto`.
 - `netstandard2.1` and `net8.0` targets.
+
+### Changed
+- Default options aligned with the Python SDK: `MaxInflightRecords` 1,000,000;
+  `FlushTimeout` 5 min; reconnect `InitialDelay` 2 s; reconnect `MaxAttempts` 3.
 
 ### Notes
 - The `descriptor_proto` sent on stream creation is the message-level `DescriptorProto`

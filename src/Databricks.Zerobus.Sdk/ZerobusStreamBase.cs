@@ -1,3 +1,4 @@
+using System.Text;
 using System.Threading.Channels;
 using Databricks.Zerobus.Grpc;
 using Google.Protobuf.WellKnownTypes;
@@ -317,8 +318,63 @@ public abstract class ZerobusStreamBase : IZerobusStreamBase
     {
         _fatal = ex;
         _ready.TrySetException(ex);
+
+        List<long> unackedOffsets;
+        lock (_unackedLock) unackedOffsets = _unacked.Keys.ToList();
+
         _tracker.Fault(ex);
+
+        if (_options.AckCallback is { } callback)
+            foreach (var offset in unackedOffsets)
+                callback.OnError(offset, ex);
+
         _lifetime.Cancel();
+    }
+
+    /// <summary>
+    /// Returns the payloads of single records that were ingested but not yet durably acknowledged,
+    /// in offset order. Useful after a terminal failure to drive custom retry. JSON payloads are
+    /// returned as UTF-8 bytes; Protobuf payloads as the serialized message bytes.
+    /// </summary>
+    public IReadOnlyList<byte[]> GetUnacknowledgedRecords()
+    {
+        lock (_unackedLock)
+        {
+            var records = new List<byte[]>();
+            foreach (var envelope in _unacked.Values)
+                if (envelope.PayloadCase == EphemeralStreamRequest.PayloadOneofCase.IngestRecord)
+                    records.Add(ExtractRecord(envelope.IngestRecord));
+            return records;
+        }
+    }
+
+    /// <summary>
+    /// Returns the unacknowledged batch payloads (one inner list per batch), in offset order.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<byte[]>> GetUnacknowledgedBatches()
+    {
+        lock (_unackedLock)
+        {
+            var batches = new List<IReadOnlyList<byte[]>>();
+            foreach (var envelope in _unacked.Values)
+                if (envelope.PayloadCase == EphemeralStreamRequest.PayloadOneofCase.IngestRecordBatch)
+                    batches.Add(ExtractBatch(envelope.IngestRecordBatch));
+            return batches;
+        }
+    }
+
+    private static byte[] ExtractRecord(IngestRecordRequest record) =>
+        record.RecordCase == IngestRecordRequest.RecordOneofCase.JsonRecord
+            ? Encoding.UTF8.GetBytes(record.JsonRecord)
+            : record.ProtoEncodedRecord.ToByteArray();
+
+    private static IReadOnlyList<byte[]> ExtractBatch(IngestRecordBatchRequest batch)
+    {
+        if (batch.BatchCase == IngestRecordBatchRequest.BatchOneofCase.JsonBatch)
+            return batch.JsonBatch.Records.Select(Encoding.UTF8.GetBytes).ToList();
+        if (batch.BatchCase == IngestRecordBatchRequest.BatchOneofCase.ProtoEncodedBatch)
+            return batch.ProtoEncodedBatch.Records.Select(r => r.ToByteArray()).ToList();
+        return Array.Empty<byte[]>();
     }
 
     private static (bool fatal, Exception mapped) Classify(Exception ex)

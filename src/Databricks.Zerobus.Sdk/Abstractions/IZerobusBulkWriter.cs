@@ -16,6 +16,12 @@ public interface IZerobusBulkWriter<T> : IAsyncDisposable where T : IMessage<T>
 
     /// <summary>Dispatches any buffered records and waits until everything written so far is durable.</summary>
     Task FlushAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Unacknowledged single-record payloads across all parallel streams (for custom retry).</summary>
+    IReadOnlyList<byte[]> GetUnacknowledgedRecords();
+
+    /// <summary>Unacknowledged batch payloads across all parallel streams.</summary>
+    IReadOnlyList<IReadOnlyList<byte[]>> GetUnacknowledgedBatches();
 }
 
 /// <summary>A high-level JSON writer that auto-batches records and fans them out across parallel streams.</summary>
@@ -35,4 +41,10 @@ public interface IZerobusJsonBulkWriter : IAsyncDisposable
 
     /// <summary>Dispatches any buffered records and waits until everything written so far is durable.</summary>
     Task FlushAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Unacknowledged single-record payloads (UTF-8 JSON bytes) across all parallel streams.</summary>
+    IReadOnlyList<byte[]> GetUnacknowledgedRecords();
+
+    /// <summary>Unacknowledged batch payloads across all parallel streams.</summary>
+    IReadOnlyList<IReadOnlyList<byte[]>> GetUnacknowledgedBatches();
 }

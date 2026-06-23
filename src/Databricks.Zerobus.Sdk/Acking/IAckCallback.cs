@@ -12,6 +12,9 @@ public interface IAckCallback
     /// <summary>Invoked once per record offset as it becomes durably acknowledged, in increasing order.</summary>
     void OnAck(long offset);
 
-    /// <summary>Invoked when the stream fails terminally; <paramref name="error"/> is the cause.</summary>
-    void OnError(Exception error);
+    /// <summary>
+    /// Invoked for each unacknowledged offset when the stream fails terminally.
+    /// <paramref name="error"/> is the cause.
+    /// </summary>
+    void OnError(long offset, Exception error);
 }

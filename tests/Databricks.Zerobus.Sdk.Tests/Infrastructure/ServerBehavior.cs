@@ -12,6 +12,12 @@ public sealed class ServerBehavior
     /// <summary>If set, the first connection aborts after receiving this many records (simulating a disconnect).</summary>
     public int? AbortFirstConnectionAfterRecords { get; set; }
 
+    /// <summary>If set, every connection aborts after receiving this many records (forces a terminal failure).</summary>
+    public int? AbortEveryConnectionAfterRecords { get; set; }
+
+    /// <summary>When true, the server accepts records but never sends durability acks.</summary>
+    public bool SuppressAcks { get; set; }
+
     /// <summary>If set, the server emits a CloseStreamSignal after this many records on the first connection.</summary>
     public int? CloseSignalAfterRecords { get; set; }
 

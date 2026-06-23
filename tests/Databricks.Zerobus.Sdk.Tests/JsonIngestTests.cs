@@ -95,6 +95,6 @@ public class JsonIngestTests
         private readonly System.Collections.Concurrent.ConcurrentQueue<long> _acked;
         public CallbackProbe(System.Collections.Concurrent.ConcurrentQueue<long> acked) => _acked = acked;
         public void OnAck(long offset) => _acked.Enqueue(offset);
-        public void OnError(Exception error) { }
+        public void OnError(long offset, Exception error) { }
     }
 }

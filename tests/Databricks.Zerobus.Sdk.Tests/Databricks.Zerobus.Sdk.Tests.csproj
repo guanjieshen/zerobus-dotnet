@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Databricks.Zerobus.Sdk/Databricks.Zerobus.Sdk.csproj" />
+    <ProjectReference Include="../../tools/Databricks.Zerobus.ProtoGen/Databricks.Zerobus.ProtoGen.csproj" />
   </ItemGroup>
 
   <ItemGroup>

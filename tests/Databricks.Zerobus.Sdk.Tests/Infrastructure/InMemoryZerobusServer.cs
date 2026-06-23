@@ -54,17 +54,22 @@ public sealed class InMemoryZerobusServer : Databricks.Zerobus.TestProto.Zerobus
                     maxOffset = Math.Max(maxOffset, record.OffsetId);
                     recordsThisConnection++;
 
-                    if (connectionId == 1 &&
-                        _behavior.AbortFirstConnectionAfterRecords is int abortAt &&
-                        recordsThisConnection >= abortAt)
+                    if ((connectionId == 1 &&
+                         _behavior.AbortFirstConnectionAfterRecords is int abortAt &&
+                         recordsThisConnection >= abortAt)
+                        || (_behavior.AbortEveryConnectionAfterRecords is int everyAbortAt &&
+                            recordsThisConnection >= everyAbortAt))
                     {
                         throw new RpcException(new Status(StatusCode.Unavailable, "simulated disconnect"));
                     }
 
-                    await responseStream.WriteAsync(new EphemeralStreamResponse
+                    if (!_behavior.SuppressAcks)
                     {
-                        IngestRecordResponse = new IngestRecordResponse { DurabilityAckUpToOffset = maxOffset },
-                    });
+                        await responseStream.WriteAsync(new EphemeralStreamResponse
+                        {
+                            IngestRecordResponse = new IngestRecordResponse { DurabilityAckUpToOffset = maxOffset },
+                        });
+                    }
 
                     if (connectionId == 1 &&
                         _behavior.CloseSignalAfterRecords is int closeAt &&

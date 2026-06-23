@@ -88,6 +88,6 @@ public class OffsetTrackerTests
         private readonly List<long> _acked;
         public RecordingCallback(List<long> acked) => _acked = acked;
         public void OnAck(long offset) => _acked.Add(offset);
-        public void OnError(Exception error) { }
+        public void OnError(long offset, Exception error) { }
     }
 }

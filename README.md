@@ -141,6 +141,25 @@ Task<IZerobusBulkWriter<T>> CreateBulkWriterAsync<T>(
 
 Throughput scales with `Parallelism`. Each connection is a separate stream that counts against your account's concurrency quota, so use what you need and no more. (The JSON `CreateBulkWriterAsync(TableProperties, ...)` overload takes the same `BulkWriterOptions` in the same position.)
 
+## Generating the .proto from your table
+
+Instead of writing the `.proto` by hand, generate it from the table with the bundled tool so the
+fields and types line up automatically:
+
+```bash
+dotnet tool install --global Databricks.Zerobus.ProtoGen
+zerobus-generate-proto \
+  --uc-endpoint https://adb-xxxx.azuredatabricks.net \
+  --client-id "$DATABRICKS_CLIENT_ID" \
+  --client-secret "$DATABRICKS_CLIENT_SECRET" \
+  --table main.telemetry.sensor_readings \
+  --output sensor_reading.proto \
+  --namespace MyApp.Telemetry
+```
+
+Every field is emitted as `optional` so values equal to a proto3 default still serialize (see the
+note about `NOT NULL` below).
+
 ## Using it in an app
 
 Register the SDK once as a singleton, since the gRPC channel is built to be reused, and depend on the `IZerobusSdk` interface so your code stays easy to test:
@@ -180,7 +199,15 @@ await stream.WaitForOffsetAsync(offset);   // this record is now durable
 await stream.CloseAsync();
 ```
 
-Delivery is at-least-once. After a reconnect the SDK replays anything that was not acknowledged, so make your downstream tolerant of duplicates. A record or batch is durable once the call that waits on it (`WaitForOffsetAsync` or `FlushAsync`) returns. For fire-and-forget, set an `AckCallback` and skip awaiting each write.
+Delivery is at-least-once. After a reconnect the SDK replays anything that was not acknowledged, so make your downstream tolerant of duplicates. A record or batch is durable once the call that waits on it (`WaitForOffsetAsync` or `FlushAsync`) returns. For fire-and-forget, set an `AckCallback` and skip awaiting each write; its `OnError(offset, error)` fires per outstanding record if the stream fails terminally.
+
+If a stream fails for good, you can pull back what never made it durable and re-send it elsewhere:
+
+```csharp
+IReadOnlyList<byte[]> lost = stream.GetUnacknowledgedRecords();   // also GetUnacknowledgedBatches()
+```
+
+The bulk writer exposes the same across all its connections.
 
 ## Before your first write
 

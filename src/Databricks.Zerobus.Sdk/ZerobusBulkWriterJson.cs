@@ -60,6 +60,14 @@ public sealed class ZerobusBulkWriter : IZerobusJsonBulkWriter
         await Task.WhenAll(Array.ConvertAll(_streams, s => s.FlushAsync(cancellationToken))).ConfigureAwait(false);
     }
 
+    /// <summary>Unacknowledged single-record payloads (UTF-8 JSON bytes) across all parallel streams.</summary>
+    public IReadOnlyList<byte[]> GetUnacknowledgedRecords() =>
+        _streams.SelectMany(s => s.GetUnacknowledgedRecords()).ToList();
+
+    /// <summary>Unacknowledged batch payloads across all parallel streams.</summary>
+    public IReadOnlyList<IReadOnlyList<byte[]>> GetUnacknowledgedBatches() =>
+        _streams.SelectMany(s => s.GetUnacknowledgedBatches()).ToList();
+
     /// <summary>Flushes outstanding records, closes all streams, and disposes the connections.</summary>
     public async ValueTask DisposeAsync()
     {

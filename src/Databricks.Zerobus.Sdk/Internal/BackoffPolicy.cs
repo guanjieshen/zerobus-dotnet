@@ -7,17 +7,17 @@ namespace Databricks.Zerobus;
 /// </summary>
 public sealed class BackoffPolicy
 {
-    /// <summary>Delay before the first retry. Default: 1 second.</summary>
-    public TimeSpan InitialDelay { get; set; } = TimeSpan.FromSeconds(1);
+    /// <summary>Delay before the first retry. Default: 2 seconds = 2,000 ms (Python SDK <c>recovery_backoff_ms</c>).</summary>
+    public TimeSpan InitialDelay { get; set; } = TimeSpan.FromSeconds(2);
 
     /// <summary>Factor applied to the delay after each failed attempt. Default: 2.0.</summary>
     public double Multiplier { get; set; } = 2.0;
 
-    /// <summary>Maximum delay between retries. Default: 30 seconds.</summary>
+    /// <summary>Maximum delay between retries. Default: 30 seconds = 30,000 ms.</summary>
     public TimeSpan MaxDelay { get; set; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>Maximum consecutive reconnect attempts before the stream fails. Default: 10.</summary>
-    public int MaxAttempts { get; set; } = 10;
+    /// <summary>Maximum consecutive reconnect attempts before the stream fails. Default: 3 (Python SDK <c>recovery_retries</c>).</summary>
+    public int MaxAttempts { get; set; } = 3;
 
     /// <summary>A policy with the default settings.</summary>
     public static BackoffPolicy Default => new();

@@ -12,13 +12,17 @@ public sealed class StreamConfigurationOptions
     public IAckCallback? AckCallback { get; set; }
 
     /// <summary>
-    /// Maximum number of in-flight (ingested but not yet acknowledged) records.
-    /// Ingestion applies backpressure once this bound is reached. Default: 10,000.
+    /// Maximum number of in-flight (ingested but not yet acknowledged) messages. Ingestion applies
+    /// backpressure once this bound is reached.
+    /// Default: 1,000,000 (Python SDK <c>max_inflight_records</c>; effectively unbounded for most workloads).
     /// </summary>
-    public int MaxInflightRecords { get; set; } = 10_000;
+    public int MaxInflightRecords { get; set; } = 1_000_000;
 
-    /// <summary>Maximum time <see cref="ZerobusStreamBase.FlushAsync"/> waits for outstanding acks. Default: 30 seconds.</summary>
-    public TimeSpan FlushTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <summary>
+    /// Maximum time <see cref="ZerobusStreamBase.FlushAsync"/> waits for outstanding acks.
+    /// Default: 5 minutes = 300,000 ms (Python SDK <c>flush_timeout_ms</c>).
+    /// </summary>
+    public TimeSpan FlushTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Reconnect backoff policy applied on retryable stream errors.</summary>
     public BackoffPolicy Recovery { get; set; } = BackoffPolicy.Default;

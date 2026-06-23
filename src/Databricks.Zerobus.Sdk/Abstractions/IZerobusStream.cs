@@ -19,6 +19,16 @@ public interface IZerobusStreamBase : IAsyncDisposable
 
     /// <summary>Flushes outstanding records, half-closes the stream, and releases resources.</summary>
     Task CloseAsync();
+
+    /// <summary>
+    /// Returns the payloads of single records ingested but not yet durably acknowledged, in offset
+    /// order. Use after a terminal failure to drive custom retry. JSON payloads are UTF-8 bytes;
+    /// Protobuf payloads are the serialized message bytes.
+    /// </summary>
+    IReadOnlyList<byte[]> GetUnacknowledgedRecords();
+
+    /// <summary>Returns the unacknowledged batch payloads (one inner list per batch), in offset order.</summary>
+    IReadOnlyList<IReadOnlyList<byte[]>> GetUnacknowledgedBatches();
 }
 
 /// <summary>A Protobuf ingest stream for records of type <typeparamref name="T"/>.</summary>

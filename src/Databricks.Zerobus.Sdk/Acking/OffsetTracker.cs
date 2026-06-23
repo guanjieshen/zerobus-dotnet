@@ -107,6 +107,7 @@ internal sealed class OffsetTracker
             _waiters.Clear();
         }
         foreach (var tcs in toFail) tcs.TrySetException(ex);
-        _callback?.OnError(ex);
+        // Per-offset error notification is driven by the stream (it owns the unacked set);
+        // the tracker only resolves the offset waiters here.
     }
 }
