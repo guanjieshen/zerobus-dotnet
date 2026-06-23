@@ -10,8 +10,8 @@
     <Authors>guanjieshen</Authors>
     <Description>Pure-managed .NET client library for Databricks Zerobus Ingest. Stream records directly into Unity Catalog Delta tables over gRPC.</Description>
     <PackageTags>databricks;zerobus;ingest;grpc;streaming;delta;unity-catalog</PackageTags>
-    <PackageProjectUrl>https://github.com/guanjieshen/zerbus-dotnet</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/guanjieshen/zerbus-dotnet</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/guanjieshen/zerobus-dotnet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/guanjieshen/zerobus-dotnet</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -14,7 +14,7 @@ get a `0.0.0-alpha.*` version, so they can never accidentally publish over a rea
 2. **Configure a Trusted Publishing policy** on NuGet.org
    (Account -> Trusted Publishing) pointing at this repository:
    - Repository owner: `guanjieshen`
-   - Repository: `zerbus-dotnet`
+   - Repository: `zerobus-dotnet`
    - Workflow file: `release.yml`
    - Environment: `release`
 
