@@ -1,19 +1,57 @@
 # Databricks Zerobus .NET SDK
 
-Stream records straight into a Unity Catalog Delta table over gRPC — no Kafka, no Event Hub, no message bus in between.
+Stream records straight into a Unity Catalog Delta table over gRPC. No Kafka, no Event Hub, no message bus in between.
 
-This is a pure-managed .NET library (`Grpc.Net.Client` + `Google.Protobuf`, no native bits). It targets `net8.0` and `netstandard2.1`, so it works in any .NET Core 3.1+/.NET 5+ app.
+It is a pure-managed .NET library (built on `Grpc.Net.Client` and `Google.Protobuf`, with no native dependencies). It targets `net8.0` and `netstandard2.1`, so it runs in any .NET Core 3.1+ or .NET 5+ app.
 
 ```bash
 dotnet add package Databricks.Zerobus.Sdk
 ```
 
-## Get started
+## A complete example
 
-The bulk writer is the easiest way in: hand it records — one at a time or a whole list — and it batches them and sends them over several connections in parallel.
+Say you want to land sensor readings into `main.telemetry.sensor_readings`. Here is the whole thing, end to end.
+
+**1. Create the table** (Zerobus writes to existing managed Delta tables; it never creates them):
+
+```sql
+CREATE TABLE main.telemetry.sensor_readings (
+    device_id  STRING,
+    temp_c     DOUBLE,
+    humidity   INT,
+    reading_ts TIMESTAMP
+);
+```
+
+**2. Describe the row as protobuf** in `Protos/sensor_reading.proto`. The field names and types match the table:
+
+```protobuf
+syntax = "proto3";
+option csharp_namespace = "MyApp.Telemetry";
+
+message SensorReading {
+    string device_id  = 1;
+    double temp_c     = 2;
+    int32  humidity   = 3;
+    int64  reading_ts = 4;   // epoch microseconds
+}
+```
+
+Compile it by adding these to your `.csproj`:
+
+```xml
+<ItemGroup>
+  <Protobuf Include="Protos/sensor_reading.proto" GrpcServices="None" />
+  <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
+  <PackageReference Include="Google.Protobuf" />
+</ItemGroup>
+```
+
+**3. Write the records.** Hand the bulk writer one record or a whole list; it batches them and sends them over several connections at once:
 
 ```csharp
 using Databricks.Zerobus;
+using MyApp.Telemetry;
 
 await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
 
@@ -21,35 +59,45 @@ await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
     clientId, clientSecret);
 
-await writer.WriteAsync(new SensorReading { DeviceId = "sensor-1", TempC = 22.5 }); // one
-await writer.WriteAsync(myReadings);                                                // or a list
-await writer.FlushAsync();                                                          // now it's durable
+var readings = Enumerable.Range(0, 10_000).Select(i => new SensorReading
+{
+    DeviceId  = $"sensor-{i % 50}",
+    TempC     = 20 + i % 10,
+    Humidity  = 40 + i % 30,
+    ReadingTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1000,
+});
+
+await writer.WriteAsync(readings);   // batched and parallelized for you
+await writer.FlushAsync();           // returns once every record is durable
 ```
 
-That's the whole happy path. Disposing the writer flushes and closes everything, so an `await using` is usually all the cleanup you need.
+Disposing the writer (the `await using`) flushes and closes everything, so that is usually all the cleanup you need.
 
-`SensorReading` is a generated protobuf type. Generate the `.proto` from your table so the fields line up, and compile it with `Grpc.Tools`:
+The four connection values come from your workspace:
 
-```xml
-<Protobuf Include="Protos/sensor_reading.proto" GrpcServices="None" />
-<PackageReference Include="Grpc.Tools" PrivateAssets="All" />
-<PackageReference Include="Google.Protobuf" />
+```csharp
+var serverEndpoint = "1234567890.zerobus.us-west-2.cloud.databricks.com"; // gRPC endpoint
+var workspaceUrl   = "https://dbc-xxxx.cloud.databricks.com";             // for OAuth
+var clientId       = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_ID");     // service principal
+var clientSecret   = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_SECRET");
 ```
 
-Prefer JSON? Same shape, no `.proto` needed:
+## JSON instead of protobuf
+
+If you would rather not define a `.proto`, write JSON. Everything else is the same:
 
 ```csharp
 await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties("main.telemetry.events"), clientId, clientSecret);
 
 await writer.WriteAsync("{\"device_id\":\"sensor-1\",\"temp_c\":22.5}"); // raw JSON
-await writer.WriteAsync(new { device_id = "sensor-2", temp_c = 23.0 });   // or a POCO
+await writer.WriteAsync(new { device_id = "sensor-2", temp_c = 23.0 });   // or a POCO, serialized for you
 await writer.FlushAsync();
 ```
 
 ## Tuning throughput
 
-Throughput scales with the number of parallel connections. The defaults are a good starting point; raise `Parallelism` if you have the uplink and quota for it.
+Throughput scales with the number of parallel connections. The defaults are sensible; raise `Parallelism` when you have the network and quota to use it:
 
 ```csharp
 var options = new BulkWriterOptions
@@ -58,13 +106,15 @@ var options = new BulkWriterOptions
     BatchSize     = 10_000,           // max rows per batch          (default 10,000)
     MaxBatchBytes = 8 * 1024 * 1024,  // flush early to stay <10 MB  (default 8 MB)
 };
+
+await using var writer = await sdk.CreateBulkWriterAsync(tableProps, clientId, clientSecret, options);
 ```
 
-Each connection is its own stream and counts against your account's concurrency quota, so don't go wider than you need.
+Each connection is a separate stream that counts against your account's concurrency quota, so use what you need and no more.
 
 ## Using it in an app
 
-Register the SDK once as a singleton — the gRPC channel is meant to be reused — and depend on the `IZerobusSdk` interface so your code stays testable:
+Register the SDK once as a singleton, since the gRPC channel is built to be reused, and depend on the `IZerobusSdk` interface so your code stays easy to test:
 
 ```csharp
 builder.Services.AddSingleton<IZerobusSdk>(_ =>
@@ -79,35 +129,36 @@ public sealed class TelemetryIngestor(IZerobusSdk sdk)
         await using var writer = await sdk.CreateBulkWriterAsync(
             new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
             clientId, clientSecret, cancellationToken: ct);
+
         await writer.WriteAsync(readings, ct);
         await writer.FlushAsync(ct);
     }
 }
 ```
 
-For a long-running producer, keep one writer open and reuse it rather than creating one per request — each new stream pays the auth and handshake cost.
+For a long-running producer, keep one writer open and reuse it instead of creating one per request. Each new stream pays the auth and handshake cost up front.
 
-## Need finer control?
+## When you want finer control
 
-Drop down to a single stream when you want to manage offsets yourself:
+Drop down to a single stream to manage offsets yourself:
 
 ```csharp
 var stream = await sdk.CreateStreamAsync(
     new TableProperties("main.telemetry.events"), clientId, clientSecret);
 
 long offset = await stream.IngestRecordAsync("{\"device_id\":\"sensor-1\"}");
-await stream.WaitForOffsetAsync(offset);   // this record is durable
+await stream.WaitForOffsetAsync(offset);   // this record is now durable
 await stream.CloseAsync();
 ```
 
-Delivery is **at-least-once** — after a reconnect the SDK replays anything that wasn't acknowledged, so make your downstream tolerant of duplicates. A record (or batch) is durable once the call that waits on it — `WaitForOffsetAsync` or `FlushAsync` — returns. For fire-and-forget, set an `AckCallback` and don't await each write.
+Delivery is at-least-once. After a reconnect the SDK replays anything that was not acknowledged, so make your downstream tolerant of duplicates. A record or batch is durable once the call that waits on it (`WaitForOffsetAsync` or `FlushAsync`) returns. For fire-and-forget, set an `AckCallback` and skip awaiting each write.
 
 ## Before your first write
 
-Zerobus never creates or changes tables — you pre-create a **managed Delta table** whose columns match your records. Two things trip people up:
+Zerobus writes to a table you have already created, and two things commonly get in the way:
 
-- **No CHECK constraints.** Zerobus rejects tables that have CHECK constraints or the `checkConstraints` feature. Validate values in your producer instead.
-- **proto3 drops default values.** A scalar equal to `0`, `0.0`, or `""` isn't sent on the wire, and the server reads it as missing — so a `NOT NULL` column rejects it. If a required field can legitimately be zero/empty, mark it `optional` in the `.proto` and always set it.
+1. **No CHECK constraints.** Zerobus rejects tables that have CHECK constraints or the `checkConstraints` table feature. Validate values in your producer instead.
+2. **proto3 drops default values.** A scalar equal to `0`, `0.0`, or `""` is not sent on the wire, and the server reads it as missing, so a `NOT NULL` column rejects it. If a required field can legitimately be zero or empty, mark it `optional` in the `.proto` and always set it.
 
 The service principal needs explicit grants on the table:
 
@@ -117,22 +168,22 @@ GRANT USE SCHEMA  ON SCHEMA main.telemetry TO `<sp-client-id>`;
 GRANT MODIFY, SELECT ON TABLE main.telemetry.sensor_readings TO `<sp-client-id>`;
 ```
 
-(Custom auth? Implement `ITokenProvider` and pass it instead of the id/secret.)
+For custom auth, implement `ITokenProvider` and pass it in place of the id and secret.
 
 ## Good to know
 
-- Limits: 10 MB per message, 2,000 columns per table. The bulk writer's byte cap keeps batches under the message limit for you.
-- The public API is all interfaces (`IZerobusSdk`, `IZerobusBulkWriter<T>`, `IZerobusStream<T>`, …), so it mocks cleanly in tests.
+* Limits: 10 MB per message and 2,000 columns per table. The bulk writer's byte cap keeps batches under the message limit automatically.
+* The public API is all interfaces (`IZerobusSdk`, `IZerobusBulkWriter<T>`, `IZerobusStream<T>`, and so on), so it mocks cleanly in tests.
 
 ## Building from source
 
 ```bash
 dotnet build -c Release
-dotnet test          # runs against an in-memory gRPC server — no credentials needed
+dotnet test          # runs against an in-memory gRPC server, no credentials needed
 ```
 
-The `examples/` projects show JSON, Protobuf, and Azure Functions usage; they read connection settings from environment variables for live runs.
+The `examples/` projects show JSON, protobuf, and Azure Functions usage. They read connection settings from environment variables for live runs.
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+Apache 2.0. See [LICENSE](LICENSE).
