@@ -71,6 +71,8 @@ await writer.WriteAsync(readings);   // batched and parallelized for you
 await writer.FlushAsync();           // returns once every record is durable
 ```
 
+`TableProperties<SensorReading>` is simply the target table name paired with your record type. (For JSON, use the non-generic `new TableProperties("catalog.schema.table")`.)
+
 Disposing the writer (the `await using`) flushes and closes everything, so that is usually all the cleanup you need.
 
 The four connection values come from your workspace:
@@ -97,20 +99,35 @@ await writer.FlushAsync();
 
 ## Tuning throughput
 
-Throughput scales with the number of parallel connections. The defaults are sensible; raise `Parallelism` when you have the network and quota to use it:
+All the calls so far used the defaults. To tune the writer, build a `BulkWriterOptions` and pass it as the last argument to `CreateBulkWriterAsync`:
 
 ```csharp
 var options = new BulkWriterOptions
 {
-    Parallelism   = 4,                // parallel connections        (default 4)
-    BatchSize     = 10_000,           // max rows per batch          (default 10,000)
+    Parallelism   = 8,                // parallel connections        (default 4)
+    BatchSize     = 20_000,           // max rows per batch          (default 10,000)
     MaxBatchBytes = 8 * 1024 * 1024,  // flush early to stay <10 MB  (default 8 MB)
 };
 
-await using var writer = await sdk.CreateBulkWriterAsync(tableProps, clientId, clientSecret, options);
+await using var writer = await sdk.CreateBulkWriterAsync(
+    new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
+    clientId,
+    clientSecret,
+    options);          // <- options go here; omit the argument to use the defaults
 ```
 
-Each connection is a separate stream that counts against your account's concurrency quota, so use what you need and no more.
+The full signature is:
+
+```csharp
+Task<IZerobusBulkWriter<T>> CreateBulkWriterAsync<T>(
+    TableProperties<T> table,
+    string clientId,
+    string clientSecret,
+    BulkWriterOptions? options = null,        // optional
+    CancellationToken cancellationToken = default);
+```
+
+Throughput scales with `Parallelism`. Each connection is a separate stream that counts against your account's concurrency quota, so use what you need and no more. (The JSON `CreateBulkWriterAsync(TableProperties, ...)` overload takes the same `BulkWriterOptions` in the same position.)
 
 ## Using it in an app
 
