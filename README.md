@@ -106,22 +106,52 @@ The same writer handles larger volumes. Keep calling `WriteAsync` as your data c
 | `BatchSize` | 10,000 | Maximum rows per batch (one gRPC message) |
 | `MaxBatchBytes` | 8 MB | Batches flush before this size to stay under the 10 MB message limit |
 
-Pass the options as the last argument to `CreateBulkWriterAsync`:
+Here's a full example that writes a million records. Pass the options as the last argument to `CreateBulkWriterAsync`, hand the writer your records, and flush once at the end:
 
 ```csharp
-var options = new BulkWriterOptions { Parallelism = 8, BatchSize = 10_000 };
+using System.Diagnostics;
+using Databricks.Zerobus;
+using MyApp.Telemetry;
+
+await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+
+var options = new BulkWriterOptions
+{
+    Parallelism = 8,        // 8 connections in parallel
+    BatchSize   = 10_000,   // rows per batch
+};
 
 await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
     clientId, clientSecret, options);
 
-foreach (var chunk in source)        // your data, in whatever chunks you have
-    await writer.WriteAsync(chunk);  // IEnumerable<SensorReading>
+// Your records can come from anywhere: a list, a query result, a file. This one streams
+// them lazily, so they don't all sit in memory at once.
+IEnumerable<SensorReading> readings = GenerateReadings(1_000_000);
 
-await writer.FlushAsync();
+var sw = Stopwatch.StartNew();
+await writer.WriteAsync(readings);   // the writer batches these and spreads them across the 8 connections
+await writer.FlushAsync();           // returns once every record is stored
+sw.Stop();
+
+Console.WriteLine($"Wrote 1,000,000 records in {sw.Elapsed.TotalSeconds:F1}s");
+
+static IEnumerable<SensorReading> GenerateReadings(int count)
+{
+    for (var i = 0; i < count; i++)
+        yield return new SensorReading
+        {
+            DeviceId  = $"sensor-{i % 100}",
+            TempC     = 20 + (i % 15),
+            Humidity  = 40 + (i % 30),
+            ReadingTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1000,
+        };
+}
 ```
 
-A higher `Parallelism` gives more throughput, up to your network and account limits. Each connection counts against your Zerobus concurrency quota, so pick a number you'll actually use.
+You can hand the whole sequence to `WriteAsync` and let it batch, or call `WriteAsync` per item or per chunk as data arrives. Either way, `FlushAsync` at the end waits until everything is stored.
+
+A higher `Parallelism` gives more throughput, up to your network and account limits. With 8 connections this lands a million records in the tens of seconds (roughly 40,000+ rows per second from a single client). Each connection counts against your Zerobus concurrency quota, so pick a number you'll actually use.
 
 > 💡 **Tip:** If you leave `options` off, the writer uses the defaults above, which work well for most cases.
 
