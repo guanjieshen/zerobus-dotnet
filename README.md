@@ -176,6 +176,32 @@ await writer.WriteAsync(new { device_id = "sensor-2", temp_c = 23.0 });   // or 
 await writer.FlushAsync();
 ```
 
+## Writing into a streaming table
+
+Zerobus can also write into a Databricks **streaming table**, which is useful when a downstream Lakeflow pipeline or Structured Streaming job reads the data incrementally. Create it with `CREATE STREAMING TABLE` and a column list (no query), so it starts empty and Zerobus fills it:
+
+```sql
+CREATE STREAMING TABLE main.telemetry.sensor_readings (
+    device_id  STRING,
+    temp_c     DOUBLE,
+    humidity   INT,
+    reading_ts TIMESTAMP
+);
+```
+
+The SDK code doesn't change. Point `TableProperties` at the streaming table the same way you would a regular table:
+
+```csharp
+await using var writer = await sdk.CreateBulkWriterAsync(
+    new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
+    clientId, clientSecret);
+
+await writer.WriteAsync(readings);
+await writer.FlushAsync();
+```
+
+Downstream, you can read it as a streaming source, for example a `CREATE STREAMING TABLE ... AS SELECT` that aggregates it as new rows arrive.
+
 ## Generating a proto from a table
 
 You can generate the proto from your table instead of writing it by hand, which keeps the fields in sync:
