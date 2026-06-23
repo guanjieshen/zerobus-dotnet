@@ -1,8 +1,6 @@
 # Databricks Zerobus .NET SDK
 
-Write records straight into a Unity Catalog Delta table over gRPC. No Kafka or Event Hub in the middle.
-
-It is a plain managed .NET library (built on `Grpc.Net.Client` and `Google.Protobuf`, no native bits), targeting `net8.0` and `netstandard2.1`, so it works in any .NET Core 3.1+ or .NET 5+ app.
+A .NET client for Zerobus ingestion. It is a managed library built on `Grpc.Net.Client` and `Google.Protobuf`, targeting `net8.0` and `netstandard2.1`.
 
 ```bash
 dotnet add package Databricks.Zerobus.Sdk
