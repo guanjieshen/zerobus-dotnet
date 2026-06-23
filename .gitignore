@@ -16,5 +16,10 @@ artifacts/
 .idea/
 .vscode/
 
+## Local secrets / run config
+*.env
+run.env
+local.settings.json
+
 ## OS
 .DS_Store

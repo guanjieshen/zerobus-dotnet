@@ -7,7 +7,7 @@ namespace Databricks.Zerobus;
 /// A Zerobus ingest stream for JSON records. Created via
 /// <see cref="ZerobusSdk.CreateStreamAsync(TableProperties, string, string, StreamConfigurationOptions?, CancellationToken)"/>.
 /// </summary>
-public sealed class ZerobusStream : ZerobusStreamBase
+public sealed class ZerobusStream : ZerobusStreamBase, IZerobusJsonStream
 {
     private static readonly JsonSerializerOptions JsonDefaults = new(JsonSerializerDefaults.Web);
 

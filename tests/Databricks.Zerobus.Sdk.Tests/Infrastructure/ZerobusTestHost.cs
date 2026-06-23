@@ -49,8 +49,9 @@ public sealed class ZerobusTestHost : IAsyncDisposable
     /// <summary>Creates an SDK pointed at this host, using a fake (no-network) token provider by default.</summary>
     public ZerobusSdk CreateSdk()
     {
-        var channel = GrpcChannel.ForAddress($"http://localhost:{Port}");
-        return new ZerobusSdk(channel, "https://example.databricks.com", "1234567890", ownsChannel: true);
+        var address = $"http://localhost:{Port}";
+        var channel = GrpcChannel.ForAddress(address);
+        return new ZerobusSdk(channel, "https://example.databricks.com", "1234567890", ownsChannel: true, address: address);
     }
 
     public async ValueTask DisposeAsync()

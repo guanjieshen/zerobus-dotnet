@@ -11,7 +11,7 @@ namespace Databricks.Zerobus;
 /// and acknowledgment bookkeeping, backpressure, and automatic reconnect-and-replay.
 /// Use <see cref="ZerobusStream"/> for JSON records or <see cref="ZerobusStream{T}"/> for protobuf.
 /// </summary>
-public abstract class ZerobusStreamBase : IAsyncDisposable
+public abstract class ZerobusStreamBase : IZerobusStreamBase
 {
     private readonly Wire.Zerobus.ZerobusClient _client;
     private readonly CreateIngestStreamRequest _createRequest;

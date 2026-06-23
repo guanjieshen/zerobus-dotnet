@@ -9,7 +9,7 @@ namespace Databricks.Zerobus;
 /// <see cref="ZerobusSdk.CreateStreamAsync{T}(TableProperties{T}, string, string, StreamConfigurationOptions?, CancellationToken)"/>.
 /// </summary>
 /// <typeparam name="T">A generated protobuf message type matching the target table schema.</typeparam>
-public sealed class ZerobusStream<T> : ZerobusStreamBase where T : IMessage<T>
+public sealed class ZerobusStream<T> : ZerobusStreamBase, IZerobusStream<T> where T : IMessage<T>
 {
     internal ZerobusStream(
         Wire.Zerobus.ZerobusClient client,

@@ -28,6 +28,8 @@ public sealed class InMemoryZerobusServer : Databricks.Zerobus.TestProto.Zerobus
             switch (message.PayloadCase)
             {
                 case EphemeralStreamRequest.PayloadOneofCase.CreateStream:
+                    if (_behavior.FailCreateWith is { } status)
+                        throw new RpcException(new Status(status, "injected create failure"));
                     _behavior.LastDescriptorProto = message.CreateStream.HasDescriptorProto
                         ? message.CreateStream.DescriptorProto.ToByteArray()
                         : null;
@@ -42,6 +44,7 @@ public sealed class InMemoryZerobusServer : Databricks.Zerobus.TestProto.Zerobus
                 {
                     var record = message.IngestRecord;
                     Interlocked.Increment(ref _behavior.TotalReceived);
+                    Interlocked.Increment(ref _behavior.TotalRows);
                     _behavior.ReceivedOffsets[record.OffsetId] = 1;
                     if (record.RecordCase == IngestRecordRequest.RecordOneofCase.JsonRecord)
                         _behavior.JsonByOffset[record.OffsetId] = record.JsonRecord;
@@ -79,6 +82,12 @@ public sealed class InMemoryZerobusServer : Databricks.Zerobus.TestProto.Zerobus
                 {
                     var batch = message.IngestRecordBatch;
                     Interlocked.Increment(ref _behavior.TotalReceived);
+                    var rows = batch.BatchCase == IngestRecordBatchRequest.BatchOneofCase.ProtoEncodedBatch
+                        ? batch.ProtoEncodedBatch.Records.Count
+                        : batch.BatchCase == IngestRecordBatchRequest.BatchOneofCase.JsonBatch
+                            ? batch.JsonBatch.Records.Count
+                            : 0;
+                    Interlocked.Add(ref _behavior.TotalRows, rows);
                     _behavior.ReceivedOffsets[batch.OffsetId] = 1;
                     maxOffset = Math.Max(maxOffset, batch.OffsetId);
                     recordsThisConnection++;

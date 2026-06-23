@@ -10,33 +10,17 @@ namespace Databricks.Zerobus;
 internal static class DescriptorBuilder
 {
     /// <summary>
-    /// Returns the serialized <see cref="FileDescriptorProto"/> for the file that defines
-    /// <paramref name="descriptor"/>'s message.
+    /// Returns the serialized <see cref="DescriptorProto"/> (the message-level descriptor)
+    /// for <paramref name="descriptor"/>. The Zerobus server decodes <c>descriptor_proto</c>
+    /// as a <c>google.protobuf.DescriptorProto</c>, not a <c>FileDescriptorProto</c>.
     /// </summary>
     /// <remarks>
-    /// v1 requires the record message (and any message types it references) to be
-    /// self-contained in a single <c>.proto</c> file with no non-well-known imports —
-    /// which is exactly what the "generate .proto from a Unity Catalog table" tools emit.
-    /// A clear error is thrown otherwise.
+    /// v1 expects the record message to be self-contained — scalar fields, or nested
+    /// message/enum types defined inline within the message (these are carried in the
+    /// <see cref="DescriptorProto"/>). References to types imported from other <c>.proto</c>
+    /// files are not included; regenerate a flat <c>.proto</c> for the table if needed.
+    /// This matches the output of the "generate .proto from a Unity Catalog table" tools.
     /// </remarks>
-    public static ByteString Build(MessageDescriptor descriptor)
-    {
-        var file = descriptor.File;
-
-        foreach (var dependency in file.Dependencies)
-        {
-            if (!IsWellKnown(dependency.Name))
-            {
-                throw new ZerobusNonRetryableException(
-                    $"The record message '{descriptor.FullName}' is defined in '{file.Name}', which imports " +
-                    $"'{dependency.Name}'. v1 requires the record type to be self-contained in a single .proto " +
-                    "with no non-well-known imports. Regenerate a flat .proto for the table.");
-            }
-        }
-
-        return file.ToProto().ToByteString();
-    }
-
-    private static bool IsWellKnown(string fileName) =>
-        fileName.StartsWith("google/protobuf/", StringComparison.Ordinal);
+    public static ByteString Build(MessageDescriptor descriptor) =>
+        descriptor.ToProto().ToByteString();
 }

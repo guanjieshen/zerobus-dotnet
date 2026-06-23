@@ -1,10 +1,14 @@
 using System.Collections.Concurrent;
+using Grpc.Core;
 
 namespace Databricks.Zerobus.Tests.Infrastructure;
 
 /// <summary>Configurable, observable behavior for <see cref="InMemoryZerobusServer"/>.</summary>
 public sealed class ServerBehavior
 {
+    /// <summary>If set, the server fails every create-stream request with this gRPC status.</summary>
+    public StatusCode? FailCreateWith { get; set; }
+
     /// <summary>If set, the first connection aborts after receiving this many records (simulating a disconnect).</summary>
     public int? AbortFirstConnectionAfterRecords { get; set; }
 
@@ -16,6 +20,9 @@ public sealed class ServerBehavior
 
     /// <summary>Total ingest messages received, including replayed duplicates.</summary>
     public int TotalReceived;
+
+    /// <summary>Total individual rows received across all messages (records + batch contents).</summary>
+    public long TotalRows;
 
     /// <summary>The set of distinct offsets the server has received.</summary>
     public ConcurrentDictionary<long, byte> ReceivedOffsets { get; } = new();

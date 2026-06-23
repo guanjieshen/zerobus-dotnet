@@ -7,13 +7,13 @@ namespace Databricks.Zerobus.Tests;
 public class DescriptorBuilderTests
 {
     [Fact]
-    public void Build_produces_a_parseable_file_descriptor_containing_the_message()
+    public void Build_produces_a_parseable_message_descriptor_with_the_fields()
     {
         var bytes = DescriptorBuilder.Build(AirQuality.Descriptor);
 
-        var fileDescriptor = FileDescriptorProto.Parser.ParseFrom(bytes);
-        Assert.Contains(fileDescriptor.MessageType, m => m.Name == "AirQuality");
-        var message = fileDescriptor.MessageType.Single(m => m.Name == "AirQuality");
+        // The Zerobus server decodes descriptor_proto as a message-level DescriptorProto.
+        var message = DescriptorProto.Parser.ParseFrom(bytes);
+        Assert.Equal("AirQuality", message.Name);
         Assert.Contains(message.Field, f => f.Name == "device_name");
         Assert.Contains(message.Field, f => f.Name == "temp");
         Assert.Contains(message.Field, f => f.Name == "humidity");
