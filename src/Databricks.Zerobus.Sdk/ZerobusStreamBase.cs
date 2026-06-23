@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Threading.Channels;
 using Databricks.Zerobus.Grpc;
@@ -29,7 +30,12 @@ public abstract class ZerobusStreamBase : IZerobusStreamBase
     private readonly Task _pumpTask;
     private readonly TaskCompletionSource<bool> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    private long _sentUpTo = -1;
+    // Per-connection wire-offset state. Zerobus numbers offset_id from 0 on each ephemeral stream,
+    // so the wire offset is assigned at send time (not at ingest) and mapped back to the logical
+    // offset that ingest/flush/acks use. Reset on every (re)connect.
+    private long _nextWire;
+    private long _lastSentLogical = -1;
+    private ConcurrentDictionary<long, long> _wireToLogical = new();
     private volatile bool _closing;
     private volatile Exception? _fatal;
     private string? _streamId;
@@ -99,7 +105,7 @@ public abstract class ZerobusStreamBase : IZerobusStreamBase
         lock (_unackedLock)
         {
             offset = _tracker.AssignNext();
-            SetOffset(envelope, offset);
+            // The wire offset_id is assigned at send time (per ephemeral stream), not here.
             _unacked[offset] = envelope;
             _sendQueue.Writer.TryWrite(offset);
         }
@@ -197,7 +203,9 @@ public abstract class ZerobusStreamBase : IZerobusStreamBase
                     throw new ZerobusNonRetryableException($"Expected a create-stream response but received {first.PayloadCase}.");
 
                 _streamId = first.CreateStreamResponse.StreamId;
-                _sentUpTo = -1;
+                _nextWire = 0;
+                _lastSentLogical = -1;
+                _wireToLogical = new ConcurrentDictionary<long, long>();
                 attempt = 0;
                 _ready.TrySetResult(true);
 
@@ -248,13 +256,21 @@ public abstract class ZerobusStreamBase : IZerobusStreamBase
     private async Task ReadLoopAsync(
         AsyncDuplexStreamingCall<EphemeralStreamRequest, EphemeralStreamResponse> call, CancellationToken ct)
     {
+        var prunedWire = 0L; // local: only this loop touches it for this connection
         while (await call.ResponseStream.MoveNext(ct).ConfigureAwait(false))
         {
             var response = call.ResponseStream.Current;
             switch (response.PayloadCase)
             {
                 case EphemeralStreamResponse.PayloadOneofCase.IngestRecordResponse:
-                    ReleaseAcked(response.IngestRecordResponse.DurabilityAckUpToOffset);
+                    // The ack is a wire offset for this ephemeral stream; map it to the logical offset.
+                    var wireAck = response.IngestRecordResponse.DurabilityAckUpToOffset;
+                    if (_wireToLogical.TryGetValue(wireAck, out var logicalAck))
+                    {
+                        ReleaseAcked(logicalAck);
+                        for (var w = prunedWire; w <= wireAck; w++) _wireToLogical.TryRemove(w, out _);
+                        prunedWire = wireAck + 1;
+                    }
                     break;
                 case EphemeralStreamResponse.PayloadOneofCase.CloseStreamSignal:
                     throw new ServerCloseRequestedException(response.CloseStreamSignal.Duration?.ToTimeSpan());
@@ -265,28 +281,38 @@ public abstract class ZerobusStreamBase : IZerobusStreamBase
     private async Task WriteLoopAsync(
         AsyncDuplexStreamingCall<EphemeralStreamRequest, EphemeralStreamResponse> call, CancellationToken ct)
     {
-        // Replay every unacknowledged record on this (re)connection, in offset order.
+        // Assigns the next wire offset_id (0-based for this ephemeral stream), records the
+        // wire -> logical mapping for acks, sends, and advances the logical high-water mark.
+        async Task SendAsync(long logical, EphemeralStreamRequest envelope)
+        {
+            var wire = _nextWire++;
+            SetOffset(envelope, wire);
+            _wireToLogical[wire] = logical;
+            await call.RequestStream.WriteAsync(envelope).ConfigureAwait(false);
+            _lastSentLogical = logical;
+        }
+
+        // Replay every unacknowledged record on this (re)connection, in logical order. They go out
+        // as offsets 0,1,2,... because the server expects a fresh sequence per ephemeral stream.
         List<KeyValuePair<long, EphemeralStreamRequest>> replay;
         lock (_unackedLock) replay = _unacked.ToList();
         foreach (var entry in replay)
         {
             ct.ThrowIfCancellationRequested();
-            await call.RequestStream.WriteAsync(entry.Value).ConfigureAwait(false);
-            _sentUpTo = entry.Key;
+            await SendAsync(entry.Key, entry.Value).ConfigureAwait(false);
         }
 
         // Send newly ingested records as they arrive.
         var reader = _sendQueue.Reader;
         while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
         {
-            while (reader.TryRead(out var offset))
+            while (reader.TryRead(out var logical))
             {
-                if (offset <= _sentUpTo) continue; // already replayed on this connection
+                if (logical <= _lastSentLogical) continue; // already sent on this connection
                 EphemeralStreamRequest? envelope;
-                lock (_unackedLock) _unacked.TryGetValue(offset, out envelope);
+                lock (_unackedLock) _unacked.TryGetValue(logical, out envelope);
                 if (envelope is null) continue; // already acknowledged
-                await call.RequestStream.WriteAsync(envelope).ConfigureAwait(false);
-                _sentUpTo = offset;
+                await SendAsync(logical, envelope).ConfigureAwait(false);
             }
         }
 

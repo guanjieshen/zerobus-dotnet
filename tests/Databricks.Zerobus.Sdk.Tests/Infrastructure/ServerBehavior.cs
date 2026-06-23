@@ -33,8 +33,11 @@ public sealed class ServerBehavior
     /// <summary>The set of distinct offsets the server has received.</summary>
     public ConcurrentDictionary<long, byte> ReceivedOffsets { get; } = new();
 
-    /// <summary>JSON payloads keyed by offset (last write wins).</summary>
+    /// <summary>JSON payloads keyed by offset (last write wins). Offsets repeat across connections.</summary>
     public ConcurrentDictionary<long, string> JsonByOffset { get; } = new();
+
+    /// <summary>Distinct JSON payloads received (deduped by content; survives reconnects/replays).</summary>
+    public ConcurrentDictionary<string, byte> JsonRecords { get; } = new();
 
     /// <summary>Protobuf payloads keyed by offset (last write wins).</summary>
     public ConcurrentDictionary<long, byte[]> ProtoByOffset { get; } = new();

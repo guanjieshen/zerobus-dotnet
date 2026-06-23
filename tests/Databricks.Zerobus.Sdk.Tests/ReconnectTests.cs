@@ -25,9 +25,10 @@ public class ReconnectTests
         await stream.FlushAsync().WaitAsync(TimeSpan.FromSeconds(15));
         await stream.CloseAsync();
 
-        // At-least-once delivery: every distinct offset is durable despite the disconnect.
-        Assert.Equal(20, behavior.ReceivedOffsets.Count);
-        for (long i = 0; i < 20; i++) Assert.True(behavior.ReceivedOffsets.ContainsKey(i));
+        // At-least-once delivery: every distinct record is durable despite the disconnect.
+        // (Offsets restart at 0 on the reconnected stream, so assert on record content.)
+        Assert.Equal(20, behavior.JsonRecords.Count);
+        for (var i = 0; i < 20; i++) Assert.True(behavior.JsonRecords.ContainsKey($"{{\"id\":{i}}}"));
         Assert.True(behavior.ConnectionCount >= 2, $"expected a reconnect, saw {behavior.ConnectionCount} connection(s)");
     }
 
@@ -45,7 +46,7 @@ public class ReconnectTests
         await stream.FlushAsync().WaitAsync(TimeSpan.FromSeconds(15));
         await stream.CloseAsync();
 
-        Assert.Equal(10, behavior.ReceivedOffsets.Count);
+        Assert.Equal(10, behavior.JsonRecords.Count);
         Assert.True(behavior.ConnectionCount >= 2, $"expected a reconnect after close signal, saw {behavior.ConnectionCount}");
     }
 }

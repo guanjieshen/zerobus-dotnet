@@ -22,6 +22,15 @@ public sealed class InMemoryZerobusServer : Databricks.Zerobus.TestProto.Zerobus
         var connectionId = Interlocked.Increment(ref _behavior.ConnectionCount);
         long maxOffset = -1;
         var recordsThisConnection = 0;
+        var expectedOffset = 0L; // Zerobus requires offset_id to start at 0 and be sequential per stream.
+
+        void CheckOffset(long offsetId)
+        {
+            if (offsetId != expectedOffset)
+                throw new RpcException(new Status(StatusCode.InvalidArgument,
+                    $"Non-sequential offset_id: expected {expectedOffset}, received {offsetId}"));
+            expectedOffset++;
+        }
 
         await foreach (var message in requestStream.ReadAllAsync(context.CancellationToken))
         {
@@ -43,11 +52,15 @@ public sealed class InMemoryZerobusServer : Databricks.Zerobus.TestProto.Zerobus
                 case EphemeralStreamRequest.PayloadOneofCase.IngestRecord:
                 {
                     var record = message.IngestRecord;
+                    CheckOffset(record.OffsetId);
                     Interlocked.Increment(ref _behavior.TotalReceived);
                     Interlocked.Increment(ref _behavior.TotalRows);
                     _behavior.ReceivedOffsets[record.OffsetId] = 1;
                     if (record.RecordCase == IngestRecordRequest.RecordOneofCase.JsonRecord)
+                    {
                         _behavior.JsonByOffset[record.OffsetId] = record.JsonRecord;
+                        _behavior.JsonRecords[record.JsonRecord] = 1;
+                    }
                     else if (record.RecordCase == IngestRecordRequest.RecordOneofCase.ProtoEncodedRecord)
                         _behavior.ProtoByOffset[record.OffsetId] = record.ProtoEncodedRecord.ToByteArray();
 
@@ -86,6 +99,7 @@ public sealed class InMemoryZerobusServer : Databricks.Zerobus.TestProto.Zerobus
                 case EphemeralStreamRequest.PayloadOneofCase.IngestRecordBatch:
                 {
                     var batch = message.IngestRecordBatch;
+                    CheckOffset(batch.OffsetId);
                     Interlocked.Increment(ref _behavior.TotalReceived);
                     var rows = batch.BatchCase == IngestRecordBatchRequest.BatchOneofCase.ProtoEncodedBatch
                         ? batch.ProtoEncodedBatch.Records.Count

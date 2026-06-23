@@ -32,6 +32,13 @@ All notable changes to this project are documented here. The format is based on
 - Default options aligned with the Python SDK: `MaxInflightRecords` 1,000,000;
   `FlushTimeout` 5 min; reconnect `InitialDelay` 2 s; reconnect `MaxAttempts` 3.
 
+### Fixed
+- `offset_id` is now numbered per ephemeral stream (0-based) and assigned at send time, then
+  mapped back to the logical offset for acks. Previously the offset was a stream-lifetime counter,
+  so after a reconnect the SDK replayed unacknowledged records with non-zero offsets and the server
+  rejected the new stream with "Non-sequential offset_id: expected 0" (error 4002). The in-memory
+  test server now enforces sequential 0-based offsets so this path is covered.
+
 ### Notes
 - The `descriptor_proto` sent on stream creation is the message-level `DescriptorProto`
   (validated against a live Zerobus server).
