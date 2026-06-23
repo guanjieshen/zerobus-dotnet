@@ -13,6 +13,9 @@
     <!-- In-box on net8.0; referenced only for the netstandard2.1 target -->
     <PackageVersion Include="System.Threading.Channels" Version="8.0.0" />
     <PackageVersion Include="System.Text.Json" Version="8.0.5" />
+    <!-- Packaging: tag-driven versioning + SourceLink (build-time only) -->
+    <PackageVersion Include="MinVer" Version="6.0.0" />
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

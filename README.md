@@ -4,9 +4,21 @@ Stream records straight into a Unity Catalog Delta table over gRPC. No Kafka, no
 
 It is a pure-managed .NET library (built on `Grpc.Net.Client` and `Google.Protobuf`, with no native dependencies). It targets `net8.0` and `netstandard2.1`, so it runs in any .NET Core 3.1+ or .NET 5+ app.
 
+## Install
+
+It is published on NuGet.org. Add it to your app the usual way:
+
 ```bash
 dotnet add package Databricks.Zerobus.Sdk
 ```
+
+or in your `.csproj`:
+
+```xml
+<PackageReference Include="Databricks.Zerobus.Sdk" Version="0.1.0" />
+```
+
+That one reference is all you need. It pulls in `Grpc.Net.Client` and `Google.Protobuf` automatically; there is nothing to copy or build by hand.
 
 ## A complete example
 
