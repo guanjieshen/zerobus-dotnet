@@ -113,6 +113,14 @@ using System.Diagnostics;
 using Databricks.Zerobus;
 using MyApp.Telemetry;
 
+// Connection settings. You pass these in; the SDK doesn't read a config file on its own.
+// Keep them wherever you store config (environment variables, appsettings.json, Key Vault).
+// They're the same whether you use a Databricks-managed or an Entra ID service principal.
+var serverEndpoint = Environment.GetEnvironmentVariable("ZEROBUS_SERVER_ENDPOINT")!; // e.g. 1234567890.zerobus.us-west-2.cloud.databricks.com
+var workspaceUrl   = Environment.GetEnvironmentVariable("DATABRICKS_WORKSPACE_URL")!; // e.g. https://adb-xxxx.azuredatabricks.net
+var clientId       = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_ID")!;     // service principal application (client) id
+var clientSecret   = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_SECRET")!; // its Databricks OAuth secret
+
 await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
 
 var options = new BulkWriterOptions
