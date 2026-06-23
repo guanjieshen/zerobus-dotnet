@@ -1,16 +1,34 @@
 # Databricks Zerobus .NET SDK
 
-A .NET client for Zerobus ingestion. It is a managed library built on `Grpc.Net.Client` and `Google.Protobuf`, targeting `net8.0` and `netstandard2.1`.
+[![NuGet](https://img.shields.io/nuget/v/Databricks.Zerobus.Sdk.svg)](https://www.nuget.org/packages/Databricks.Zerobus.Sdk)
+[![Downloads](https://img.shields.io/nuget/dt/Databricks.Zerobus.Sdk.svg)](https://www.nuget.org/packages/Databricks.Zerobus.Sdk)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
+## Overview
+
+This repository provides a .NET client library for **Databricks Zerobus**, which ingests records directly into Unity Catalog managed Delta tables over gRPC. It is a managed library built on `Grpc.Net.Client` and `Google.Protobuf`, and it supports `net8.0` and `netstandard2.1`.
+
+The SDK handles the connection, batching, acknowledgments, and reconnection for you, and exposes both a high-level bulk writer and a lower-level single stream.
+
+## Installation
 
 ```bash
 dotnet add package Databricks.Zerobus.Sdk
 ```
 
-## A quick example
+Or add the reference to your `.csproj`:
 
-Let's land sensor readings into `main.telemetry.sensor_readings`.
+```xml
+<PackageReference Include="Databricks.Zerobus.Sdk" Version="0.1.0" />
+```
 
-First, the table has to exist already. Zerobus writes to it, it never creates it:
+## Getting started
+
+This example lands sensor readings into `main.telemetry.sensor_readings`.
+
+### 1. Create the target table
+
+Zerobus ingests into a table that already exists, so create it first:
 
 ```sql
 CREATE TABLE main.telemetry.sensor_readings (
@@ -21,7 +39,9 @@ CREATE TABLE main.telemetry.sensor_readings (
 );
 ```
 
-Next, describe a row as protobuf in `Protos/sensor_reading.proto`. The field names line up with the columns:
+### 2. Define the record schema
+
+Describe a row as protobuf in `Protos/sensor_reading.proto`, matching the table columns:
 
 ```protobuf
 syntax = "proto3";
@@ -35,7 +55,7 @@ message SensorReading {
 }
 ```
 
-Add these to your `.csproj` so the proto gets compiled into a `SensorReading` class:
+Add the following to your `.csproj` so the proto compiles into a `SensorReading` class:
 
 ```xml
 <ItemGroup>
@@ -45,7 +65,7 @@ Add these to your `.csproj` so the proto gets compiled into a `SensorReading` cl
 </ItemGroup>
 ```
 
-Now write some records:
+### 3. Write records
 
 ```csharp
 using Databricks.Zerobus;
@@ -60,14 +80,14 @@ await using var writer = await sdk.CreateBulkWriterAsync(
 await writer.WriteAsync(new SensorReading { DeviceId = "sensor-1", TempC = 22.5 });  // one record
 await writer.WriteAsync(myReadings);   // or an IEnumerable<SensorReading>
 
-await writer.FlushAsync();   // returns once everything is safely stored
+await writer.FlushAsync();   // returns once everything is stored
 ```
 
-That is the whole happy path. You hand the writer records, it batches them and sends them, and `FlushAsync` waits until the server has them. Disposing the writer (the `await using`) flushes and closes for you, so you usually do not need to do anything else.
+You hand the writer records, it batches and sends them, and `FlushAsync` waits until the server has them. The `await using` on the writer flushes and closes for you, so there's usually nothing else to clean up.
 
-`TableProperties<SensorReading>` is just the table name plus the record type. For JSON, there is a non-generic `new TableProperties("catalog.schema.table")`.
+`TableProperties<SensorReading>` is the table name plus the record type. For JSON, use the non-generic `new TableProperties("catalog.schema.table")`.
 
-The four connection values come from your workspace:
+The connection values come from your workspace:
 
 ```csharp
 var serverEndpoint = "1234567890.zerobus.us-west-2.cloud.databricks.com"; // gRPC endpoint
@@ -76,16 +96,20 @@ var clientId       = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_ID");
 var clientSecret   = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_SECRET");
 ```
 
-## Sending a lot of data
+## High-throughput writes
 
-The same writer handles bulk. You can keep calling `WriteAsync` as your data arrives, then flush once at the end. Two settings control speed: `Parallelism` (how many connections run at once) and `BatchSize` (rows per message). They go on `BulkWriterOptions`, which is the last argument to `CreateBulkWriterAsync`:
+The same writer handles larger volumes. Keep calling `WriteAsync` as your data comes in, then flush once at the end. Two settings on `BulkWriterOptions` control throughput:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `Parallelism` | 4 | Number of connections running in parallel |
+| `BatchSize` | 10,000 | Maximum rows per batch (one gRPC message) |
+| `MaxBatchBytes` | 8 MB | Batches flush before this size to stay under the 10 MB message limit |
+
+Pass the options as the last argument to `CreateBulkWriterAsync`:
 
 ```csharp
-var options = new BulkWriterOptions
-{
-    Parallelism = 8,        // connections running in parallel (default 4)
-    BatchSize   = 10_000,   // rows per batch              (default 10,000)
-};
+var options = new BulkWriterOptions { Parallelism = 8, BatchSize = 10_000 };
 
 await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
@@ -97,13 +121,13 @@ foreach (var chunk in source)        // your data, in whatever chunks you have
 await writer.FlushAsync();
 ```
 
-More `Parallelism` means more throughput, up to your network and account limits. Each connection counts against your Zerobus concurrency quota, so pick a number you actually need. You do not have to worry about message size: the writer splits batches so they stay under the 10 MB limit on their own.
+A higher `Parallelism` gives more throughput, up to your network and account limits. Each connection counts against your Zerobus concurrency quota, so pick a number you'll actually use.
 
-If you leave `options` off, you get the defaults (parallelism 4, batches of 10,000), which are fine for most cases.
+> 💡 **Tip:** If you leave `options` off, the writer uses the defaults above, which work well for most cases.
 
-## Prefer JSON?
+## JSON ingestion
 
-Skip the proto and send JSON instead. Everything else is the same:
+If you'd rather not define a proto, send JSON instead. Everything else stays the same:
 
 ```csharp
 await using var writer = await sdk.CreateBulkWriterAsync(
@@ -114,9 +138,9 @@ await writer.WriteAsync(new { device_id = "sensor-2", temp_c = 23.0 });   // or 
 await writer.FlushAsync();
 ```
 
-## Generating the proto from your table
+## Generating a proto from a table
 
-Rather than hand-writing the `.proto`, you can generate it from the table so the fields match:
+You can generate the proto from your table instead of writing it by hand, which keeps the fields in sync:
 
 ```bash
 dotnet tool install --global Databricks.Zerobus.ProtoGen
@@ -129,11 +153,11 @@ zerobus-generate-proto \
   --namespace MyApp.Telemetry
 ```
 
-It marks every field `optional` so a value of `0`, `0.0`, or `""` still gets sent (more on that below).
+It marks every field `optional` so a value of `0`, `0.0`, or `""` still gets sent (see the note in [Before you begin](#before-you-begin)).
 
-## Using it in a service
+## Using the SDK in a service
 
-Register the SDK once as a singleton and ask for the `IZerobusSdk` interface where you need it. The gRPC channel is meant to be reused, and depending on the interface keeps your code easy to test:
+Register the SDK once as a singleton and inject the `IZerobusSdk` interface where you need it. The gRPC channel is meant to be reused, and depending on the interface keeps your code easy to test:
 
 ```csharp
 builder.Services.AddSingleton<IZerobusSdk>(_ =>
@@ -155,11 +179,11 @@ public sealed class TelemetryIngestor(IZerobusSdk sdk)
 }
 ```
 
-For a service that runs all the time, keep one writer open and reuse it instead of making a new one per request. Opening a stream costs an auth and handshake round trip.
+> 💡 **Tip:** For a long-running service, keep one writer open and reuse it rather than creating one per request. Opening a stream costs an auth and handshake round trip.
 
-## When you need more control
+## Working with a single stream
 
-If you want to track individual records, drop down to a single stream:
+For control over individual records, use a single stream instead of the bulk writer:
 
 ```csharp
 var stream = await sdk.CreateStreamAsync(
@@ -170,14 +194,15 @@ await stream.WaitForOffsetAsync(offset);   // that record is now stored
 await stream.CloseAsync();
 ```
 
-A record is stored once the call that waits on it (`WaitForOffsetAsync` or `FlushAsync`) comes back. Delivery is at-least-once: if a connection drops, the SDK reconnects and resends anything that was not confirmed, so expect the odd duplicate downstream. If something fails for good, `GetUnacknowledgedRecords()` hands back what never made it so you can retry it elsewhere.
+A record is stored once the call that waits on it (`WaitForOffsetAsync` or `FlushAsync`) returns. Delivery is at-least-once: if a connection drops, the SDK reconnects and resends anything that wasn't confirmed, so expect the occasional duplicate downstream. If something fails for good, `GetUnacknowledgedRecords()` returns whatever didn't make it so you can retry it elsewhere.
 
-## A couple of things to know first
+## Before you begin
 
-You create the table yourself, and two things commonly get in the way:
+Since you create the table yourself, two things commonly get in the way:
 
-- Zerobus will not write to a table that has CHECK constraints. Check your values in code instead.
-- In proto3, a field equal to its default (`0`, `0.0`, `""`) is not sent over the wire, and the server reads that as missing, so a `NOT NULL` column rejects it. If a required field can be zero or empty, mark it `optional` in the proto and always set it. The proto generator does this for you.
+> ⚠️ **CHECK constraints are not supported.** Zerobus will not ingest into a table that has CHECK constraints. Validate values in your producer instead.
+
+> ⚠️ **proto3 drops default values.** A field equal to its default (`0`, `0.0`, `""`) is not sent over the wire, and the server reads that as missing, so a `NOT NULL` column rejects it. If a required field can be zero or empty, mark it `optional` in the proto and always set it. The proto generator does this for you.
 
 The service principal needs access to the table:
 
@@ -187,11 +212,11 @@ GRANT USE SCHEMA  ON SCHEMA main.telemetry TO `<sp-client-id>`;
 GRANT MODIFY, SELECT ON TABLE main.telemetry.sensor_readings TO `<sp-client-id>`;
 ```
 
-If you need custom auth, implement `ITokenProvider` and pass it in place of the id and secret.
+For custom authentication, implement `ITokenProvider` and pass it in place of the client id and secret.
 
 ## Limits
 
-10 MB per message and 2,000 columns per table. The bulk writer keeps batches under the message limit for you. Scale past a single stream by raising `Parallelism`.
+10 MB per message and 2,000 columns per table. The bulk writer keeps batches under the message limit for you, and you can scale past a single stream by raising `Parallelism`.
 
 ## Building from source
 
