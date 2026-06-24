@@ -26,6 +26,9 @@ All notable changes to this project are documented here. The format is based on
 - `DelegatingTokenProvider` for supplying tokens from a custom source (Azure.Identity, managed
   identity, the Databricks SDK, etc.). The built-in OAuth flow already covers both Databricks-managed
   and Microsoft Entra ID service principals (an Entra SP needs a Databricks OAuth secret).
+- `EntraTokenProvider` (tenant id, client id, client secret) for authenticating a Microsoft Entra ID
+  service principal with its Azure AD credentials directly, for setups that don't use a Databricks
+  OAuth secret.
 - `netstandard2.1` and `net8.0` targets.
 
 ### Changed

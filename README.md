@@ -264,7 +264,18 @@ A record is stored once the call that waits on it (`WaitForOffsetAsync` or `Flus
 
 The SDK authenticates with a Databricks service principal over OAuth (machine to machine). The examples above pass the service principal's client ID and secret, which is all most apps need.
 
-This works for both **Databricks-managed** and **Microsoft Entra ID** service principals. For an Entra ID service principal, add it to the workspace and generate a Databricks OAuth secret (Settings, Identity and access, Service principals, Secrets), then pass the service principal's application (client) ID and that secret. The token request is the same in both cases, and it's the endpoint Databricks recommends for M2M.
+This works for both **Databricks-managed** and **Microsoft Entra ID** service principals. The simplest path for an Entra ID service principal is to add it to the workspace and generate a Databricks OAuth secret (Settings, Identity and access, Service principals, Secrets), then pass the application (client) ID and that secret. No tenant id is needed, the token request is the same as a Databricks-managed SP, and it's the endpoint Databricks recommends for M2M.
+
+If you instead authenticate with the Entra ID service principal's own Azure AD credentials (no Databricks OAuth secret), use `EntraTokenProvider`, which needs the **tenant id**:
+
+```csharp
+var tokenProvider = new EntraTokenProvider(tenantId, clientId, clientSecret);
+
+await using var writer = await sdk.CreateBulkWriterAsync(
+    new TableProperties<SensorReading>("main.telemetry.sensor_readings"), tokenProvider);
+```
+
+This fetches an Entra ID token from `login.microsoftonline.com`. The Databricks OAuth secret path above is the one Databricks recommends and the one verified end to end, so prefer it unless your setup requires the native Entra flow.
 
 If you'd rather supply the token from your own flow (Azure.Identity, a managed identity, the Databricks SDK, or a token you already hold), use `DelegatingTokenProvider` in place of the client id and secret:
 
