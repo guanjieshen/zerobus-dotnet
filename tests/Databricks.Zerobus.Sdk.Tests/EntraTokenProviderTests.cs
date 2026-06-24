@@ -1,12 +1,33 @@
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using Databricks.Zerobus.Tests.Infrastructure;
 using Xunit;
 
 namespace Databricks.Zerobus.Tests;
 
 public class EntraTokenProviderTests
 {
+    [Fact]
+    public async Task Works_end_to_end_with_a_mocked_entra_endpoint_and_in_memory_server()
+    {
+        // Mock the Entra token endpoint so no real Azure AD call happens.
+        var handler = new StubHandler(_ => Task.FromResult(Json(new { access_token = "fake-entra-token", expires_in = 3600 })));
+        using var http = new HttpClient(handler);
+        var tokenProvider = new EntraTokenProvider("tenant", "client", "secret", http);
+
+        // Point the SDK at the in-memory Zerobus server (it ignores the token's contents).
+        await using var host = await ZerobusTestHost.StartAsync();
+        await using var sdk = host.CreateSdk();
+
+        var stream = await sdk.CreateStreamAsync(new TableProperties("main.s.t"), tokenProvider);
+        var offset = await stream.IngestRecordAsync("{\"id\":1}");
+        await stream.WaitForOffsetAsync(offset).WaitAsync(TimeSpan.FromSeconds(5));
+        await stream.CloseAsync();
+
+        Assert.Equal(1, host.Behavior.TotalRows);
+    }
+
     [Fact]
     public async Task Requests_an_entra_token_with_the_databricks_resource_scope()
     {
