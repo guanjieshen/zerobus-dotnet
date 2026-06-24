@@ -26,6 +26,10 @@ All notable changes to this project are documented here. The format is based on
 - `DelegatingTokenProvider` for supplying tokens from a custom source (Azure.Identity, managed
   identity, the Databricks SDK, etc.). The built-in OAuth flow already covers both Databricks-managed
   and Microsoft Entra ID service principals (an Entra SP needs a Databricks OAuth secret).
+- `FederatedTokenProvider` for OAuth token federation: exchanges an external identity-provider JWT
+  (e.g. a Microsoft Entra ID token) for a Zerobus-scoped Databricks token, for service principals
+  that authenticate through a federation policy instead of a Databricks OAuth secret.
+- `ZerobusSdk.WorkspaceIdFromServerEndpoint` helper.
 - `netstandard2.1` and `net8.0` targets.
 
 ### Changed

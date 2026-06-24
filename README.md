@@ -266,7 +266,24 @@ The SDK authenticates with a Databricks service principal over OAuth (machine to
 
 This works for both **Databricks-managed** and **Microsoft Entra ID** service principals. The simplest path for an Entra ID service principal is to add it to the workspace and generate a Databricks OAuth secret (Settings, Identity and access, Service principals, Secrets), then pass the application (client) ID and that secret. No tenant id is needed, the token request is the same as a Databricks-managed SP, and it's the endpoint Databricks recommends for M2M.
 
-A raw Entra ID token (from `login.microsoftonline.com`) is not accepted directly. Zerobus needs a token issued by the Databricks workspace endpoint, scoped to the Zerobus resource, so the Databricks OAuth secret above is the path to use. If your organization can't issue a Databricks OAuth secret for the service principal, set up [Databricks token federation](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/auth/oauth-federation-exchange) for it, exchange its Entra ID token for a Databricks token, and feed that token in with `DelegatingTokenProvider`.
+A raw Entra ID token (from `login.microsoftonline.com`) is not accepted directly. Zerobus needs a token issued by the Databricks workspace endpoint, scoped to the Zerobus resource, so the Databricks OAuth secret above is the path to use.
+
+If your organization can't issue a Databricks OAuth secret, set up [Databricks token federation](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/auth/oauth-federation-exchange) for the service principal and use `FederatedTokenProvider`. You supply a callback that returns your federated JWT (for example, an Entra ID token), and the provider exchanges it at the workspace endpoint for a Zerobus-scoped token:
+
+```csharp
+var workspaceId = ZerobusSdk.WorkspaceIdFromServerEndpoint(serverEndpoint);
+
+var tokenProvider = new FederatedTokenProvider(
+    workspaceUrl,
+    workspaceId,
+    subjectTokenProvider: ct => GetEntraTokenAsync(ct), // your Entra/IdP JWT
+    clientId: servicePrincipalClientId);                // for service-principal federation policies
+
+await using var writer = await sdk.CreateBulkWriterAsync(
+    new TableProperties<SensorReading>("main.telemetry.sensor_readings"), tokenProvider);
+```
+
+The Databricks OAuth secret path is the verified one; the token-exchange path with the Zerobus resource isn't separately documented by Databricks, so confirm it works in your workspace.
 
 If you'd rather supply the token from your own flow (Azure.Identity, a managed identity, the Databricks SDK, or a token you already hold), use `DelegatingTokenProvider` in place of the client id and secret:
 

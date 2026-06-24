@@ -261,6 +261,12 @@ public sealed class ZerobusSdk : IZerobusSdk
         return serverEndpoint.Contains("://") ? serverEndpoint : "https://" + serverEndpoint;
     }
 
+    /// <summary>
+    /// Extracts the numeric workspace id from a Zerobus server endpoint (its first DNS label).
+    /// Useful when constructing a <see cref="FederatedTokenProvider"/>.
+    /// </summary>
+    public static string WorkspaceIdFromServerEndpoint(string serverEndpoint) => ExtractWorkspaceId(serverEndpoint);
+
     internal static string ExtractWorkspaceId(string serverEndpoint)
     {
         var host = serverEndpoint;
