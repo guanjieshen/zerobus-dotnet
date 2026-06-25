@@ -64,7 +64,9 @@ Two cases:
   </ItemGroup>
   ```
 
-  In the `<PackageReference Include="Grpc.Tools" ... />` line that `dotnet add package` wrote, add `PrivateAssets="All"` so it stays build-only. `Grpc.Tools` is the only package you add; the generated code binds to the transitive `Google.Protobuf`.
+  The `Include` path must point at where the `.proto` actually lives, relative to the `.csproj`. If the build produces no generated type (and your code later fails with "MyRecord could not be found"), this path is wrong. `Grpc.Tools` is the only package you add; the generated code binds to the transitive `Google.Protobuf`. Current `dotnet` writes `Grpc.Tools` as build-only automatically (`<PrivateAssets>all</PrivateAssets>`); if your reference does not have it, add `PrivateAssets="All"` so it does not flow to consumers.
+
+  `Grpc.Tools` compiles the `.proto` into a C# class named after the message (`message MyRecord` -> class `MyRecord`), in the namespace from `option csharp_namespace` in the `.proto`. proto fields become PascalCase properties (`string id` -> `.Id`). Reference the class with a `using` for that namespace.
 
 Confirm the dependency tree is clean before shipping:
 
@@ -76,22 +78,37 @@ dotnet list package --vulnerable --include-transitive
 
 Default to the **bulk writer**. It accepts a single record or a list, batches them, and fans out across parallel connections. `FlushAsync` returns once everything is durable.
 
+A complete protobuf example (the four connection values come from the app's config, env vars shown here):
+
 ```csharp
 using Databricks.Zerobus;
+using MyApp; // namespace from the .proto's csharp_namespace; MyRecord is the generated class
+
+var serverEndpoint = Environment.GetEnvironmentVariable("ZEROBUS_ENDPOINT")!; // bare host, no https://
+var workspaceUrl   = Environment.GetEnvironmentVariable("DATABRICKS_HOST")!;   // https://...
+var clientId       = Environment.GetEnvironmentVariable("CLIENT_ID")!;
+var clientSecret   = Environment.GetEnvironmentVariable("CLIENT_SECRET")!;
 
 await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
 
 await using var writer = await sdk.CreateBulkWriterAsync(
-    new TableProperties<MyRecord>("catalog.schema.table"),   // TableProperties("...") for JSON
+    new TableProperties<MyRecord>("catalog.schema.table"),
     clientId, clientSecret,
     new BulkWriterOptions { Parallelism = 4, BatchSize = 10_000 }); // optional; these are the defaults
 
-await writer.WriteAsync(oneRecord);   // single
-await writer.WriteAsync(manyRecords); // IEnumerable<MyRecord>
+await writer.WriteAsync(new MyRecord { Id = "sensor-1", Value = 22.5 }); // single; proto fields are PascalCase
+await writer.WriteAsync(new[] { new MyRecord { Id = "sensor-2", Value = 19.1 } }); // IEnumerable<MyRecord>
 await writer.FlushAsync();
 ```
 
-JSON variant: `new TableProperties("catalog.schema.table")` and `WriteAsync("{...}")` or `WriteAsync(poco)`.
+**JSON variant**: use the non-generic `TableProperties` (no type argument) and pass JSON strings or POCOs:
+
+```csharp
+await using var writer = await sdk.CreateBulkWriterAsync(
+    new TableProperties("catalog.schema.table"), clientId, clientSecret);
+await writer.WriteAsync("{\"id\":\"sensor-1\",\"value\":22.5}"); // or WriteAsync(somePoco)
+await writer.FlushAsync();
+```
 
 For control over individual records, use a single stream instead:
 
