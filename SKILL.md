@@ -14,6 +14,26 @@ metadata:
 
 Add streaming ingestion into a Unity Catalog Delta table using `Databricks.Zerobus.Sdk`. Follow these steps when wiring Zerobus into an existing .NET app.
 
+## 0. Gather requirements first (do this before writing any code)
+
+Zerobus writes to a pre-existing table using caller-supplied connection, auth, and schema details. The SDK reads none of this from a config file, and none of it can be guessed. Confirm every item below with the user before implementing. If anything is missing or ambiguous, **stop and ask**, do not invent endpoints, table names, credentials, or column names.
+
+Walk the user through this checklist:
+
+1. **Connection**
+   - `serverEndpoint`: `<workspace-id>.zerobus.<region>.cloud.databricks.com` (AWS) or `.azuredatabricks.net` (Azure).
+   - `workspaceUrl`: `https://<instance>.cloud.databricks.com` or `https://adb-<id>.<n>.azuredatabricks.net`.
+2. **Target table** (three-part name `catalog.schema.table`). It must already exist and meet the requirements in step 6 (managed/external storage, no CHECK constraints, explicit grants). Ask the user to confirm it exists, or treat creating it as a separate task.
+3. **Authentication** (pick one, then collect its inputs):
+   - **Databricks-managed or Entra SP with a Databricks OAuth secret**: `clientId` + `clientSecret`.
+   - **Entra ID via token federation** (no Databricks secret): Entra `tenantId`, `clientId`, `clientSecret`, **and** a Databricks token-federation policy already configured on the SP. Confirm the policy exists, it is a prerequisite, not something the SDK creates.
+4. **Record format**
+   - **JSON**: no schema artifact needed.
+   - **Protobuf**: confirm the user already has the record type, either a generated C# message class or a `.proto`. If they have neither, generating one is a separate, external step (step 6) that needs table read access. Either way, the proto fields must match the table columns.
+5. **Where secrets come from**: env vars, `appsettings.json`, or a secret store. Never hard-code `clientSecret` into source.
+
+Only once these are settled, proceed.
+
 ## 1. Install the package
 
 ```bash
