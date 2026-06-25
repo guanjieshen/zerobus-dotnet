@@ -9,6 +9,30 @@ using Databricks.Zerobus.ProtoGen;
 //     --output sensor_reading.proto \
 //     [--proto-msg SensorReading] [--namespace MyApp.Telemetry]
 
+if (args.Length == 0 || args.Contains("--help") || args.Contains("-h"))
+{
+    Console.WriteLine(
+        """
+        Generates a .proto from a Unity Catalog table.
+
+        Usage:
+          zerobus-generate-proto --uc-endpoint <url> --client-id <id> --client-secret <secret> \
+            --table catalog.schema.table [--output record.proto] [--proto-msg MyRecord] [--namespace MyApp]
+
+        Required:
+          --uc-endpoint    Workspace URL, e.g. https://adb-xxxx.azuredatabricks.net
+          --client-id      Service principal id
+          --client-secret  Service principal secret
+          --table          Three-part table name (catalog.schema.table)
+
+        Optional:
+          --output         Output .proto path (default: record.proto)
+          --proto-msg      Message name (default: derived from the table name)
+          --namespace      csharp_namespace option in the generated .proto
+        """);
+    return 0;
+}
+
 var options = ParseArgs(args);
 
 string Required(string key) =>

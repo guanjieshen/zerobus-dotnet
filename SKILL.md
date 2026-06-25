@@ -27,15 +27,24 @@ It targets `net8.0` and `netstandard2.1` and pulls in `Grpc.Net.Client` and `Goo
 - **Protobuf** (recommended for production): define a `.proto` matching the table columns and compile it with `Grpc.Tools`.
 - **JSON**: no `.proto` needed; send JSON strings or POCOs.
 
-For Protobuf, add to the consuming project's `.csproj`:
+For Protobuf, install the two compile-time packages, then wire the `.proto` into the build.
+
+Install with `dotnet add package` so the versions are pinned to a current, non-vulnerable release. Do not add them version-less in the `.csproj` (a version-less `Google.Protobuf` resolves to an old 3.0.0 with a known high-severity advisory and the codegen will not run):
+
+```bash
+dotnet add package Grpc.Tools
+dotnet add package Google.Protobuf
+```
+
+Then add the `.proto` to the consuming project's `.csproj`, and set `Grpc.Tools` to build-only:
 
 ```xml
 <ItemGroup>
   <Protobuf Include="Protos/record.proto" GrpcServices="None" />
-  <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
-  <PackageReference Include="Google.Protobuf" />
 </ItemGroup>
 ```
+
+In the `<PackageReference Include="Grpc.Tools" ... />` line that `dotnet add package` wrote, add `PrivateAssets="All"` so it does not flow to downstream consumers.
 
 ## 3. Write records
 
@@ -92,13 +101,20 @@ Zerobus writes to a pre-existing table. Check these or ingestion fails:
 - The service principal needs `USE CATALOG`, `USE SCHEMA`, and `MODIFY` + `SELECT` on the table (grant explicitly on the table).
 - proto3 drops default values (`0`, `0.0`, `""`); a `NOT NULL` column rejects a missing field. Mark required-but-possibly-default fields `optional` in the `.proto` and always set them.
 
-Generate a matching `.proto` from a table with the bundled tool:
+Generating the `.proto` is optional and external to the SDK. The SDK ingests any compiled protobuf message, so produce the `.proto` however suits the project:
+
+- Hand-write it to match the table columns (see the README for an example).
+- Use the official Databricks Python generator: `python -m zerobus.tools.generate_proto`.
+- This repo bundles a generator under `tools/Databricks.Zerobus.ProtoGen`. Run it from a clone:
 
 ```bash
-dotnet tool install --global Databricks.Zerobus.ProtoGen
-zerobus-generate-proto --uc-endpoint <workspace-url> --client-id <id> --client-secret <secret> \
+git clone https://github.com/guanjieshen/zerobus-dotnet
+dotnet run --project zerobus-dotnet/tools/Databricks.Zerobus.ProtoGen -- \
+  --uc-endpoint <workspace-url> --client-id <id> --client-secret <secret> \
   --table catalog.schema.table --output record.proto --namespace MyApp
 ```
+
+Whichever you pick, declare required-but-zero-valued fields `optional` (see the proto3 note above).
 
 ## 7. Verify the integration
 

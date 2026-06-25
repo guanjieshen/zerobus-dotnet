@@ -55,15 +55,24 @@ message SensorReading {
 }
 ```
 
-Add the following to your `.csproj` so the proto compiles into a `SensorReading` class:
+Install the two compile-time packages, then point the build at your `.proto`:
+
+```bash
+dotnet add package Grpc.Tools
+dotnet add package Google.Protobuf
+```
+
+Install them this way rather than adding them version-less in the `.csproj`. A version-less `Google.Protobuf` resolves to an old `3.0.0` (which carries a known high-severity advisory) and the proto never compiles. `dotnet add package` pins a current version.
+
+Then add the proto to your `.csproj` so it compiles into a `SensorReading` class:
 
 ```xml
 <ItemGroup>
   <Protobuf Include="Protos/sensor_reading.proto" GrpcServices="None" />
-  <PackageReference Include="Grpc.Tools" PrivateAssets="All" />
-  <PackageReference Include="Google.Protobuf" />
 </ItemGroup>
 ```
+
+In the `Grpc.Tools` reference that `dotnet add package` wrote, add `PrivateAssets="All"` so it stays build-only and does not flow to anything that depends on your project.
 
 ### 3. Write records
 
@@ -204,11 +213,13 @@ Downstream, you can read it as a streaming source, for example a `CREATE STREAMI
 
 ## Generating a proto from a table
 
-You can generate the proto from your table instead of writing it by hand, which keeps the fields in sync:
+Generating the proto is optional. The SDK ingests any compiled protobuf message, so you can write the `.proto` by hand (as shown above), match the table schema yourself, or use the official Databricks Python generator (`python -m zerobus.tools.generate_proto`).
+
+This repo also bundles a generator that reads the table and keeps the fields in sync. It isn't published to NuGet, so run it from a clone:
 
 ```bash
-dotnet tool install --global Databricks.Zerobus.ProtoGen
-zerobus-generate-proto \
+git clone https://github.com/guanjieshen/zerobus-dotnet
+dotnet run --project zerobus-dotnet/tools/Databricks.Zerobus.ProtoGen -- \
   --uc-endpoint https://adb-xxxx.azuredatabricks.net \
   --client-id "$DATABRICKS_CLIENT_ID" \
   --client-secret "$DATABRICKS_CLIENT_SECRET" \
