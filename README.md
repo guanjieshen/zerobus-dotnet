@@ -55,16 +55,13 @@ message SensorReading {
 }
 ```
 
-Install the two compile-time packages, then point the build at your `.proto`:
+If you already have the generated C# class (the proto was compiled elsewhere), add nothing. The SDK depends on a current, patched `Google.Protobuf` that flows to your project transitively, which is all the runtime needs.
+
+To have the build compile the `.proto` for you, add only `Grpc.Tools` (the build-time protoc), then point the build at the file:
 
 ```bash
 dotnet add package Grpc.Tools
-dotnet add package Google.Protobuf
 ```
-
-Install them this way rather than adding them version-less in the `.csproj`. A version-less `Google.Protobuf` resolves to an old `3.0.0` (which carries a known high-severity advisory) and the proto never compiles. `dotnet add package` pins a current version.
-
-Then add the proto to your `.csproj` so it compiles into a `SensorReading` class:
 
 ```xml
 <ItemGroup>
@@ -72,7 +69,7 @@ Then add the proto to your `.csproj` so it compiles into a `SensorReading` class
 </ItemGroup>
 ```
 
-In the `Grpc.Tools` reference that `dotnet add package` wrote, add `PrivateAssets="All"` so it stays build-only and does not flow to anything that depends on your project.
+In the `Grpc.Tools` reference that `dotnet add package` wrote, add `PrivateAssets="All"` so it stays build-only. Don't add `Google.Protobuf` yourself: a version-less `<PackageReference Include="Google.Protobuf" />` resolves to the old `3.0.0`, which carries a known high-severity advisory. The transitive one from the SDK is patched. You can confirm the tree is clean with `dotnet list package --vulnerable --include-transitive`.
 
 ### 3. Write records
 

@@ -24,27 +24,33 @@ It targets `net8.0` and `netstandard2.1` and pulls in `Grpc.Net.Client` and `Goo
 
 ## 2. Pick a serialization format
 
-- **Protobuf** (recommended for production): define a `.proto` matching the table columns and compile it with `Grpc.Tools`.
-- **JSON**: no `.proto` needed; send JSON strings or POCOs.
+- **Protobuf** (recommended for production): the SDK ingests a generated protobuf message type (`IMessage<T>`). This skill assumes you already have the record type, either as a generated C# class or as a `.proto` file. Generating one is optional and external (see step 6).
+- **JSON**: no `.proto` needed; send JSON strings or POCOs. Skip the rest of this step.
 
-For Protobuf, install the two compile-time packages, then wire the `.proto` into the build.
+You do **not** add `Google.Protobuf` yourself. The SDK already depends on a current, patched `Google.Protobuf` and it flows to your project transitively. Adding it by hand is what exposes the team: a version-less `<PackageReference Include="Google.Protobuf" />` resolves to the old `3.0.0`, which carries a known high-severity advisory.
 
-Install with `dotnet add package` so the versions are pinned to a current, non-vulnerable release. Do not add them version-less in the `.csproj` (a version-less `Google.Protobuf` resolves to an old 3.0.0 with a known high-severity advisory and the codegen will not run):
+Two cases:
+
+- **You already have the generated C# message class** (proto compiled elsewhere, the `.cs` is in your project): add nothing. The SDK's transitive `Google.Protobuf` is all the runtime needs.
+- **You have a `.proto` and want the build to compile it**: add only `Grpc.Tools` (the build-time protoc), then point the build at the file:
+
+  ```bash
+  dotnet add package Grpc.Tools
+  ```
+
+  ```xml
+  <ItemGroup>
+    <Protobuf Include="Protos/record.proto" GrpcServices="None" />
+  </ItemGroup>
+  ```
+
+  In the `<PackageReference Include="Grpc.Tools" ... />` line that `dotnet add package` wrote, add `PrivateAssets="All"` so it stays build-only. `Grpc.Tools` is the only package you add; the generated code binds to the transitive `Google.Protobuf`.
+
+Confirm the dependency tree is clean before shipping:
 
 ```bash
-dotnet add package Grpc.Tools
-dotnet add package Google.Protobuf
+dotnet list package --vulnerable --include-transitive
 ```
-
-Then add the `.proto` to the consuming project's `.csproj`, and set `Grpc.Tools` to build-only:
-
-```xml
-<ItemGroup>
-  <Protobuf Include="Protos/record.proto" GrpcServices="None" />
-</ItemGroup>
-```
-
-In the `<PackageReference Include="Grpc.Tools" ... />` line that `dotnet add package` wrote, add `PrivateAssets="All"` so it does not flow to downstream consumers.
 
 ## 3. Write records
 
