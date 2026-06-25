@@ -353,6 +353,10 @@ dotnet test          # runs against an in-memory gRPC server, no credentials nee
 
 The `examples/` folder has JSON, protobuf, and Azure Functions samples that read settings from environment variables.
 
+## Using this with an AI coding agent
+
+This repo ships a [`SKILL.md`](SKILL.md) that follows the [Agent Skills](https://agentskills.io/specification) spec. Point your coding harness (Claude Code or similar) at it and the agent can wire Zerobus into your .NET project for you: install the package, set up the writer, configure authentication, and check the table requirements. Drop `SKILL.md` into your harness's skills directory, or copy it alongside your project so the agent picks it up.
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
