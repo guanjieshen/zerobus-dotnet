@@ -304,6 +304,8 @@ Since you create the table yourself, two things commonly get in the way:
 
 > ⚠️ **proto3 drops default values.** A field equal to its default (`0`, `0.0`, `""`) is not sent over the wire, and the server reads that as missing, so a `NOT NULL` column rejects it. If a required field can be zero or empty, mark it `optional` in the proto and always set it. The proto generator does this for you.
 
+> ⚠️ **The table can't be in Unity Catalog default storage.** Zerobus rejects a table whose catalog has no explicit managed or external storage location (error 4024, "Tables created in default storage are not supported"). Create the table in a catalog backed by managed or external storage.
+
 The service principal needs access to the table:
 
 ```sql
