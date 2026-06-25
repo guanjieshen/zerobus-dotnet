@@ -268,22 +268,46 @@ This works for both **Databricks-managed** and **Microsoft Entra ID** service pr
 
 A raw Entra ID token (from `login.microsoftonline.com`) is not accepted directly. Zerobus needs a token issued by the Databricks workspace endpoint, scoped to the Zerobus resource, so the Databricks OAuth secret above is the path to use.
 
-If your organization can't issue a Databricks OAuth secret, set up [Databricks token federation](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/auth/oauth-federation-exchange) for the service principal and use `FederatedTokenProvider`. You supply a callback that returns your federated JWT (for example, an Entra ID token), and the provider exchanges it at the workspace endpoint for a Zerobus-scoped token:
+### Microsoft Entra ID via token federation
+
+If you can't issue a Databricks OAuth secret for the service principal, authenticate the Entra ID SP through [Databricks token federation](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/auth/oauth-federation-exchange). You get an Entra token; `FederatedTokenProvider` exchanges it at the workspace endpoint for a Zerobus-scoped Databricks token. No Databricks secret is stored.
+
+**One-time setup (account admin):** create a federation policy so Databricks trusts the SP's Entra tokens.
+
+1. In the account console, go to **User management, Service principals, your SP, Credentials & secrets, Federation policies, Create policy** (or run `databricks account service-principal-federation-policy create`).
+2. Set:
+   - **Issuer:** `https://sts.windows.net/<tenant-id>/`
+   - **Audience:** `2ff814a6-3304-4ab8-85cb-cd0e6f879c1d` (the Azure Databricks application id, the same for every tenant)
+   - **Subject:** the service principal's object id (the `sub` claim of its Entra token)
+   - **Subject claim:** `sub`
+3. Grant the SP `MODIFY` and `SELECT` on the target table (see [Before you begin](#before-you-begin)).
+
+> 💡 **Tip:** If you aren't sure of the subject, run a write once. When the policy is missing or wrong, Databricks returns the exact issuer, subject, and audience it expects in the error, which you can paste into the policy.
+
+In code, get the Entra token with `Azure.Identity` and hand it to `FederatedTokenProvider`:
 
 ```csharp
-var workspaceId = ZerobusSdk.WorkspaceIdFromServerEndpoint(serverEndpoint);
+using Azure.Core;
+using Azure.Identity;
+using Databricks.Zerobus;
+
+var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+
+await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
 
 var tokenProvider = new FederatedTokenProvider(
     workspaceUrl,
-    workspaceId,
-    subjectTokenProvider: ct => GetEntraTokenAsync(ct), // your Entra/IdP JWT
-    clientId: servicePrincipalClientId);                // for service-principal federation policies
+    ZerobusSdk.WorkspaceIdFromServerEndpoint(serverEndpoint),
+    subjectTokenProvider: async ct =>
+        (await credential.GetTokenAsync(
+            new TokenRequestContext(new[] { "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default" }), ct)).Token,
+    clientId: clientId);   // the SP application (client) id, for service-principal federation policies
 
 await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties<SensorReading>("main.telemetry.sensor_readings"), tokenProvider);
 ```
 
-The Databricks OAuth secret path is the verified one; the token-exchange path with the Zerobus resource isn't separately documented by Databricks, so confirm it works in your workspace.
+The provider does the RFC 8693 token exchange and refreshes as needed. If you'd rather not add `Azure.Identity`, your `subjectTokenProvider` can POST to `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` (grant_type `client_credentials`, scope `2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default`) and return the `access_token`. Both have been verified through Zerobus authentication.
 
 If you'd rather supply the token from your own flow (Azure.Identity, a managed identity, the Databricks SDK, or a token you already hold), use `DelegatingTokenProvider` in place of the client id and secret:
 
