@@ -19,7 +19,7 @@ dotnet add package Databricks.Zerobus.Sdk
 Or add the reference to your `.csproj`:
 
 ```xml
-<PackageReference Include="Databricks.Zerobus.Sdk" Version="0.1.0" />
+<PackageReference Include="Databricks.Zerobus.Sdk" Version="0.1.3" />
 ```
 
 ## Getting started
@@ -89,7 +89,7 @@ await writer.WriteAsync(myReadings);   // or an IEnumerable<SensorReading>
 await writer.FlushAsync();   // returns once everything is stored
 ```
 
-You hand the writer records, it batches and sends them, and `FlushAsync` waits until the server has them. The `await using` on the writer flushes and closes for you, so there's usually nothing else to clean up.
+The writer batches and sends the records; `FlushAsync` waits until the server has them. `await using` flushes and closes the writer for you.
 
 `TableProperties<SensorReading>` is the table name plus the record type. For JSON, use the non-generic `new TableProperties("catalog.schema.table")`.
 
@@ -104,7 +104,7 @@ var clientSecret   = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_SECRE
 
 ## High-throughput writes
 
-The same writer handles larger volumes. Keep calling `WriteAsync` as your data comes in, then flush once at the end. Two settings on `BulkWriterOptions` control throughput:
+The same writer handles larger volumes. Keep calling `WriteAsync` as data comes in, then flush once at the end. Two settings on `BulkWriterOptions` control throughput:
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -112,16 +112,14 @@ The same writer handles larger volumes. Keep calling `WriteAsync` as your data c
 | `BatchSize` | 10,000 | Maximum rows per batch (one gRPC message) |
 | `MaxBatchBytes` | 8 MB | Batches flush before this size to stay under the 10 MB message limit |
 
-Here's a full example that writes a million records. Pass the options as the last argument to `CreateBulkWriterAsync`, hand the writer your records, and flush once at the end:
+Here's a full example that writes a million records, passing the options as the last argument to `CreateBulkWriterAsync`:
 
 ```csharp
 using System.Diagnostics;
 using Databricks.Zerobus;
 using MyApp.Telemetry;
 
-// Connection settings. You pass these in; the SDK doesn't read a config file on its own.
-// Keep them wherever you store config (environment variables, appsettings.json, Key Vault).
-// They're the same whether you use a Databricks-managed or an Entra ID service principal.
+// Connection settings come from your own config (env vars here). Same for Databricks-managed and Entra ID SPs.
 var serverEndpoint = Environment.GetEnvironmentVariable("ZEROBUS_SERVER_ENDPOINT")!; // e.g. 1234567890.zerobus.us-west-2.cloud.databricks.com
 var workspaceUrl   = Environment.GetEnvironmentVariable("DATABRICKS_WORKSPACE_URL")!; // e.g. https://adb-xxxx.azuredatabricks.net
 var clientId       = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_ID")!;     // service principal application (client) id
@@ -162,8 +160,6 @@ static IEnumerable<SensorReading> GenerateReadings(int count)
         };
 }
 ```
-
-You can hand the whole sequence to `WriteAsync` and let it batch, or call `WriteAsync` per item or per chunk as data arrives. Either way, `FlushAsync` at the end waits until everything is stored.
 
 A higher `Parallelism` gives more throughput, up to your network and account limits. With 8 connections this lands a million records in the tens of seconds (roughly 40,000+ rows per second from a single client). Each connection counts against your Zerobus concurrency quota, so pick a number you'll actually use.
 
@@ -315,7 +311,7 @@ await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties<SensorReading>("main.telemetry.sensor_readings"), tokenProvider);
 ```
 
-The provider does the RFC 8693 token exchange and refreshes as needed. If you'd rather not add `Azure.Identity`, your `subjectTokenProvider` can POST to `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` (grant_type `client_credentials`, scope `2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default`) and return the `access_token`. Both have been verified through Zerobus authentication.
+The provider does the RFC 8693 token exchange and refreshes as needed. If you'd rather not add `Azure.Identity`, your `subjectTokenProvider` can POST to `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` (grant_type `client_credentials`, scope `2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default`) and return the `access_token`.
 
 If you'd rather supply the token from your own flow (Azure.Identity, a managed identity, the Databricks SDK, or a token you already hold), use `DelegatingTokenProvider` in place of the client id and secret:
 
