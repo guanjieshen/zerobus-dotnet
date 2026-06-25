@@ -4,6 +4,25 @@
 [![Downloads](https://img.shields.io/nuget/dt/Databricks.Zerobus.Sdk.svg)](https://www.nuget.org/packages/Databricks.Zerobus.Sdk)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
+## Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Getting started](#getting-started)
+- [High-throughput writes](#high-throughput-writes)
+- [JSON ingestion](#json-ingestion)
+- [Writing into a streaming table](#writing-into-a-streaming-table)
+- [Generating a proto from a table](#generating-a-proto-from-a-table)
+- [Using the SDK in a service](#using-the-sdk-in-a-service)
+- [Working with a single stream](#working-with-a-single-stream)
+- [Authentication](#authentication)
+  - [Microsoft Entra ID via token federation](#microsoft-entra-id-via-token-federation)
+- [Before you begin](#before-you-begin)
+- [Limits](#limits)
+- [Building from source](#building-from-source)
+- [Using this with an AI coding agent](#using-this-with-an-ai-coding-agent)
+- [License](#license)
+
 ## Overview
 
 This repository provides a .NET client library for **Databricks Zerobus**, which ingests records directly into Unity Catalog managed Delta tables over gRPC. It is a managed library built on `Grpc.Net.Client` and `Google.Protobuf`, and it supports `net8.0` and `netstandard2.1`.
