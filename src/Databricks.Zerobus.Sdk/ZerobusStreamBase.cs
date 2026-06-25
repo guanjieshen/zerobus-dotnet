@@ -409,6 +409,8 @@ public abstract class ZerobusStreamBase : IZerobusStreamBase
         {
             case ZerobusNonRetryableException:
                 return (true, ex);
+            case ZerobusAuthException:
+                return (true, ex); // bad credentials won't fix themselves; don't retry
             case ServerCloseRequestedException:
                 return (false, ex); // retryable: reconnect and replay
             case RpcException rpc:

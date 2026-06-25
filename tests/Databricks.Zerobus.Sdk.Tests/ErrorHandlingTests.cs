@@ -47,6 +47,25 @@ public class ErrorHandlingTests
     }
 
     [Fact]
+    public async Task Auth_failure_from_the_token_provider_is_not_retried()
+    {
+        await using var host = await ZerobusTestHost.StartAsync();
+        await using var sdk = host.CreateSdk();
+
+        var attempts = 0;
+        var tokenProvider = new DelegatingTokenProvider((_, _) =>
+        {
+            Interlocked.Increment(ref attempts);
+            throw new ZerobusAuthException("bad credentials");
+        });
+
+        await Assert.ThrowsAsync<ZerobusAuthException>(() =>
+            sdk.CreateStreamAsync(new TableProperties("main.s.t"), tokenProvider));
+
+        Assert.Equal(1, attempts); // fatal, not retried
+    }
+
+    [Fact]
     public async Task Ingesting_after_close_throws_stream_closed()
     {
         await using var host = await ZerobusTestHost.StartAsync();
