@@ -35,11 +35,7 @@ The SDK handles the connection, batching, acknowledgments, and reconnection for 
 dotnet add package Databricks.Solutions.Zerobus.Sdk
 ```
 
-Or add the reference to your `.csproj`:
-
-```xml
-<PackageReference Include="Databricks.Solutions.Zerobus.Sdk" Version="0.1.3" />
-```
+This writes the latest published version into your `.csproj` as a `<PackageReference>`.
 
 ## Getting started
 
