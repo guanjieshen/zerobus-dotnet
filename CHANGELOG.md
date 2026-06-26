@@ -21,7 +21,7 @@ All notable changes to this project are documented here. The format is based on
 - `GetUnacknowledgedRecords()` / `GetUnacknowledgedBatches()` on streams and bulk writers, for
   custom retry after a terminal failure (parity with the Python SDK's `get_unacked_*`).
 - Per-offset `IAckCallback.OnError(long offset, Exception)` (was a single stream-level callback).
-- `zerobus-generate-proto` dotnet tool (`tools/Databricks.Zerobus.ProtoGen`) that generates a
+- `zerobus-generate-proto` dotnet tool (`tools/Databricks.Solutions.Zerobus.ProtoGen`) that generates a
   `.proto` from a Unity Catalog table, mirroring `python -m zerobus.tools.generate_proto`.
 - `DelegatingTokenProvider` for supplying tokens from a custom source (Azure.Identity, managed
   identity, the Databricks SDK, etc.). The built-in OAuth flow already covers both Databricks-managed

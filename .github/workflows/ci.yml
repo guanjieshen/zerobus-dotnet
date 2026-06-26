@@ -28,12 +28,12 @@ jobs:
         run: dotnet test -c Release --no-build --verbosity normal
 
       - name: Pack (verify the package builds)
-        run: dotnet pack src/Databricks.Zerobus.Sdk/Databricks.Zerobus.Sdk.csproj -c Release --no-build -o artifacts
+        run: dotnet pack src/Databricks.Solutions.Zerobus.Sdk/Databricks.Solutions.Zerobus.Sdk.csproj -c Release --no-build -o artifacts
 
       - name: Consumer smoke test (install the package and compile against it)
         shell: bash
         run: |
-          version=$(ls artifacts/Databricks.Zerobus.Sdk.*.nupkg | sed -E 's/.*Sdk\.(.*)\.nupkg/\1/')
+          version=$(ls artifacts/Databricks.Solutions.Zerobus.Sdk.*.nupkg | sed -E 's/.*Sdk\.(.*)\.nupkg/\1/')
           echo "Testing package version: $version"
           tmp=$(mktemp -d)
           cat > "$tmp/nuget.config" <<EOF
@@ -53,12 +53,12 @@ jobs:
               <Nullable>enable</Nullable>
             </PropertyGroup>
             <ItemGroup>
-              <PackageReference Include="Databricks.Zerobus.Sdk" Version="$version" />
+              <PackageReference Include="Databricks.Solutions.Zerobus.Sdk" Version="$version" />
             </ItemGroup>
           </Project>
           EOF
           cat > "$tmp/Program.cs" <<'EOF'
-          using Databricks.Zerobus;
+          using Databricks.Solutions.Zerobus;
           IZerobusSdk sdk = new ZerobusSdk("h.zerobus.r.cloud.databricks.com", "https://x.cloud.databricks.com");
           var opt = new BulkWriterOptions { Parallelism = 4, BatchSize = 10_000 };
           var table = new TableProperties("main.telemetry.events");

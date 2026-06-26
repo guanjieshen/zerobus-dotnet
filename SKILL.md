@@ -1,18 +1,18 @@
 ---
 name: zerobus-dotnet
-description: Integrate the Databricks.Zerobus.Sdk .NET library into a .NET project to stream records into Unity Catalog Delta tables over gRPC (Databricks Zerobus Ingest). Use when a .NET app needs to write or ingest rows into Databricks through Zerobus, when setting up the bulk writer or a single ingest stream, when configuring OAuth or Microsoft Entra ID service-principal authentication, or when generating a record .proto from a Unity Catalog table.
+description: Integrate the Databricks.Solutions.Zerobus.Sdk .NET library into a .NET project to stream records into Unity Catalog Delta tables over gRPC (Databricks Zerobus Ingest). Use when a .NET app needs to write or ingest rows into Databricks through Zerobus, when setting up the bulk writer or a single ingest stream, when configuring OAuth or Microsoft Entra ID service-principal authentication, or when generating a record .proto from a Unity Catalog table.
 license: Apache-2.0
 compatibility: A .NET project targeting net8.0 or netstandard2.1+ (.NET Core 3.1+/.NET 5+). Requires NuGet access to nuget.org and a reachable Databricks workspace with a Zerobus endpoint.
 metadata:
   author: guanjieshen
   version: "0.1.3"
   repository: https://github.com/guanjieshen/zerobus-dotnet
-  package: Databricks.Zerobus.Sdk
+  package: Databricks.Solutions.Zerobus.Sdk
 ---
 
 # Integrate Databricks Zerobus into a .NET project
 
-Add streaming ingestion into a Unity Catalog Delta table using `Databricks.Zerobus.Sdk`. Follow these steps when wiring Zerobus into an existing .NET app.
+Add streaming ingestion into a Unity Catalog Delta table using `Databricks.Solutions.Zerobus.Sdk`. Follow these steps when wiring Zerobus into an existing .NET app.
 
 ## 0. Gather requirements first (do this before writing any code)
 
@@ -37,7 +37,7 @@ Only once these are settled, proceed.
 ## 1. Install the package
 
 ```bash
-dotnet add package Databricks.Zerobus.Sdk
+dotnet add package Databricks.Solutions.Zerobus.Sdk
 ```
 
 It targets `net8.0` and `netstandard2.1` and pulls in `Grpc.Net.Client` and `Google.Protobuf`. No native dependencies.
@@ -81,7 +81,7 @@ Default to the **bulk writer**. It accepts a single record or a list, batches th
 A complete protobuf example (the four connection values come from the app's config, env vars shown here):
 
 ```csharp
-using Databricks.Zerobus;
+using Databricks.Solutions.Zerobus;
 using MyApp; // namespace from the .proto's csharp_namespace; MyRecord is the generated class
 
 var serverEndpoint = Environment.GetEnvironmentVariable("ZEROBUS_ENDPOINT")!; // bare host, no https://
@@ -148,11 +148,11 @@ Generating the `.proto` is optional and external to the SDK. The SDK ingests any
 
 - Hand-write it to match the table columns (see the README for an example).
 - Use the official Databricks Python generator: `python -m zerobus.tools.generate_proto`.
-- This repo bundles a generator under `tools/Databricks.Zerobus.ProtoGen`. Run it from a clone:
+- This repo bundles a generator under `tools/Databricks.Solutions.Zerobus.ProtoGen`. Run it from a clone:
 
 ```bash
 git clone https://github.com/guanjieshen/zerobus-dotnet
-dotnet run --project zerobus-dotnet/tools/Databricks.Zerobus.ProtoGen -- \
+dotnet run --project zerobus-dotnet/tools/Databricks.Solutions.Zerobus.ProtoGen -- \
   --uc-endpoint <workspace-url> --client-id <id> --client-secret <secret> \
   --table catalog.schema.table --output record.proto --namespace MyApp
 ```

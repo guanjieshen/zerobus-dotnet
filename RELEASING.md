@@ -9,7 +9,7 @@ get a `0.0.0-alpha.*` version, so they can never accidentally publish over a rea
 
 ## One-time setup
 
-1. **Create / sign in to a NuGet.org account** that will own the `Databricks.Zerobus.Sdk` id.
+1. **Create / sign in to a NuGet.org account** that will own the `Databricks.Solutions.Zerobus.Sdk` id.
 
 2. **Configure a Trusted Publishing policy** on NuGet.org
    (Account -> Trusted Publishing) pointing at this repository:
@@ -47,6 +47,6 @@ That is the whole process: tag, push, done.
 ## Local verification
 
 ```bash
-dotnet pack src/Databricks.Zerobus.Sdk -c Release -o ./artifacts
+dotnet pack src/Databricks.Solutions.Zerobus.Sdk -c Release -o ./artifacts
 # inspect ./artifacts/*.nupkg, or install it from a local feed to smoke-test a consumer
 ```

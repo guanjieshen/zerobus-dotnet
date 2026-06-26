@@ -4,8 +4,10 @@ import "google/protobuf/duration.proto";
 
 package databricks.zerobus;
 
-// Local fake server copy of the wire contract (separate C# namespace).
-option csharp_namespace = "Databricks.Solutions.Zerobus.LocalFake";
+// Test-only copy of the wire contract, generated into a separate C# namespace so the
+// in-memory SERVER stub does not collide with the SDK's CLIENT stub (which uses
+// Databricks.Solutions.Zerobus.Grpc). The two are wire-compatible.
+option csharp_namespace = "Databricks.Solutions.Zerobus.TestProto";
 
 service Zerobus {
   rpc EphemeralStream(stream EphemeralStreamRequest) returns (stream EphemeralStreamResponse);
@@ -17,8 +19,13 @@ enum RecordType {
   JSON = 2;
 }
 
-message JsonRecordBatch { repeated string records = 1; }
-message ProtoEncodedRecordBatch { repeated bytes records = 1; }
+message JsonRecordBatch {
+  repeated string records = 1;
+}
+
+message ProtoEncodedRecordBatch {
+  repeated bytes records = 1;
+}
 
 message CreateIngestStreamRequest {
   optional string table_name = 1;

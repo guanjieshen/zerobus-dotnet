@@ -1,7 +1,7 @@
 # Databricks Zerobus .NET SDK
 
-[![NuGet](https://img.shields.io/nuget/v/Databricks.Zerobus.Sdk.svg)](https://www.nuget.org/packages/Databricks.Zerobus.Sdk)
-[![Downloads](https://img.shields.io/nuget/dt/Databricks.Zerobus.Sdk.svg)](https://www.nuget.org/packages/Databricks.Zerobus.Sdk)
+[![NuGet](https://img.shields.io/nuget/v/Databricks.Solutions.Zerobus.Sdk.svg)](https://www.nuget.org/packages/Databricks.Solutions.Zerobus.Sdk)
+[![Downloads](https://img.shields.io/nuget/dt/Databricks.Solutions.Zerobus.Sdk.svg)](https://www.nuget.org/packages/Databricks.Solutions.Zerobus.Sdk)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 ## Contents
@@ -32,13 +32,13 @@ The SDK handles the connection, batching, acknowledgments, and reconnection for 
 ## Installation
 
 ```bash
-dotnet add package Databricks.Zerobus.Sdk
+dotnet add package Databricks.Solutions.Zerobus.Sdk
 ```
 
 Or add the reference to your `.csproj`:
 
 ```xml
-<PackageReference Include="Databricks.Zerobus.Sdk" Version="0.1.3" />
+<PackageReference Include="Databricks.Solutions.Zerobus.Sdk" Version="0.1.3" />
 ```
 
 ## Getting started
@@ -93,7 +93,7 @@ In the `Grpc.Tools` reference that `dotnet add package` wrote, add `PrivateAsset
 ### 3. Write records
 
 ```csharp
-using Databricks.Zerobus;
+using Databricks.Solutions.Zerobus;
 using MyApp.Telemetry;
 
 await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
@@ -135,7 +135,7 @@ Here's a full example that writes a million records, passing the options as the 
 
 ```csharp
 using System.Diagnostics;
-using Databricks.Zerobus;
+using Databricks.Solutions.Zerobus;
 using MyApp.Telemetry;
 
 // Connection settings come from your own config (env vars here). Same for Databricks-managed and Entra ID SPs.
@@ -231,7 +231,7 @@ This repo also bundles a generator that reads the table and keeps the fields in 
 
 ```bash
 git clone https://github.com/guanjieshen/zerobus-dotnet
-dotnet run --project zerobus-dotnet/tools/Databricks.Zerobus.ProtoGen -- \
+dotnet run --project zerobus-dotnet/tools/Databricks.Solutions.Zerobus.ProtoGen -- \
   --uc-endpoint https://adb-xxxx.azuredatabricks.net \
   --client-id "$DATABRICKS_CLIENT_ID" \
   --client-secret "$DATABRICKS_CLIENT_SECRET" \
@@ -312,7 +312,7 @@ In code, get the Entra token with `Azure.Identity` and hand it to `FederatedToke
 ```csharp
 using Azure.Core;
 using Azure.Identity;
-using Databricks.Zerobus;
+using Databricks.Solutions.Zerobus;
 
 var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
 

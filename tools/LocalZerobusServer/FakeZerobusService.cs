@@ -1,4 +1,4 @@
-using Databricks.Zerobus.LocalFake;
+using Databricks.Solutions.Zerobus.LocalFake;
 using Grpc.Core;
 
 namespace LocalZerobusServer;
@@ -9,7 +9,7 @@ namespace LocalZerobusServer;
 /// for local development and testing (e.g. driving the Azure Functions sample) — it does
 /// not persist anything or validate schemas.
 /// </summary>
-public sealed class FakeZerobusService : Databricks.Zerobus.LocalFake.Zerobus.ZerobusBase
+public sealed class FakeZerobusService : Databricks.Solutions.Zerobus.LocalFake.Zerobus.ZerobusBase
 {
     private static int _connectionCounter;
     private readonly ILogger<FakeZerobusService> _logger;

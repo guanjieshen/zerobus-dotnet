@@ -33,7 +33,7 @@ jobs:
         run: dotnet test -c Release --no-build --verbosity normal
 
       - name: Pack
-        run: dotnet pack src/Databricks.Zerobus.Sdk/Databricks.Zerobus.Sdk.csproj -c Release --no-build -o artifacts
+        run: dotnet pack src/Databricks.Solutions.Zerobus.Sdk/Databricks.Solutions.Zerobus.Sdk.csproj -c Release --no-build -o artifacts
 
       - name: NuGet trusted-publishing login (OIDC -> short-lived key)
         uses: NuGet/login@v1
