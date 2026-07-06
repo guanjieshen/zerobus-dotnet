@@ -29,8 +29,12 @@ All notable changes to this project are documented here. The format is based on
 - `FederatedTokenProvider` for OAuth token federation: exchanges an external identity-provider JWT
   (e.g. a Microsoft Entra ID token) for a Zerobus-scoped Databricks token, for service principals
   that authenticate through a federation policy instead of a Databricks OAuth secret.
+- `ManagedIdentityTokenProvider` for secretless auth from Azure with a managed identity. Fetches the
+  managed identity's Entra token (App Service / Functions `IDENTITY_ENDPOINT`, or the VM instance
+  metadata service) and runs the federation exchange. Dependency-free (no `Azure.Identity`); supports
+  system- and user-assigned identities. Requires a token-federation policy keyed to the identity.
 - `ZerobusSdk.WorkspaceIdFromServerEndpoint` helper.
-- `netstandard2.1` and `net8.0` targets.
+- `netstandard2.1`, `net8.0`, and `net10.0` targets.
 
 ### Changed
 - Default options aligned with the Python SDK: `MaxInflightRecords` 1,000,000;

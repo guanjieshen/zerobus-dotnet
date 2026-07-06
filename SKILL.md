@@ -2,7 +2,7 @@
 name: zerobus-dotnet
 description: Integrate the Databricks.Solutions.Zerobus.Sdk .NET library into a .NET project to stream records into Unity Catalog Delta tables over gRPC (Databricks Zerobus Ingest). Use when a .NET app needs to write or ingest rows into Databricks through Zerobus, when setting up the bulk writer or a single ingest stream, when configuring OAuth or Microsoft Entra ID service-principal authentication, or when generating a record .proto from a Unity Catalog table.
 license: Apache-2.0
-compatibility: A .NET project targeting net8.0 or netstandard2.1+ (.NET Core 3.1+/.NET 5+). Requires NuGet access to nuget.org and a reachable Databricks workspace with a Zerobus endpoint.
+compatibility: A .NET project targeting net10.0, net8.0, or netstandard2.1+ (.NET Core 3.1+/.NET 5+). Requires NuGet access to nuget.org and a reachable Databricks workspace with a Zerobus endpoint.
 metadata:
   author: guanjieshen
   version: "0.1.3"
@@ -40,7 +40,7 @@ Only once these are settled, proceed.
 dotnet add package Databricks.Solutions.Zerobus.Sdk
 ```
 
-It targets `net8.0` and `netstandard2.1` and pulls in `Grpc.Net.Client` and `Google.Protobuf`. No native dependencies.
+It targets `net10.0`, `net8.0`, and `netstandard2.1` and pulls in `Grpc.Net.Client` and `Google.Protobuf`. No native dependencies.
 
 ## 2. Pick a serialization format
 
@@ -133,6 +133,7 @@ These are values the app supplies (the SDK does not read a config file). Source 
 
 - **Service principal client id + secret** (default): pass them to `CreateStreamAsync` / `CreateBulkWriterAsync`. Works for Databricks-managed SPs and for Entra ID SPs that have a Databricks OAuth secret. No tenant id needed.
 - **Microsoft Entra ID via token federation** (no Databricks secret): use `FederatedTokenProvider` with an Entra token from `Azure.Identity`. Requires a Databricks token-federation policy on the SP. See the README "Authentication" section.
+- **Azure managed identity** (no secret; Functions, App Service, VM): use `ManagedIdentityTokenProvider` (dependency-free, no `Azure.Identity`). It fetches the managed identity's Entra token and runs the federation exchange. Requires a token-federation policy keyed to the managed identity. The Azure Functions example wires it up behind `ZEROBUS_AUTH_MODE=managed-identity`.
 - **Custom**: implement `ITokenProvider`, or wrap any token source with `DelegatingTokenProvider`.
 
 ## 6. Target table requirements (verify before running)
