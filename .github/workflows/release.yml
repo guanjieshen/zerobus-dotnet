@@ -21,7 +21,11 @@ jobs:
 
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 8.0.x
+          # Build/pack run on the .NET 10 SDK (see global.json); the 8.0 runtime is
+          # kept so tests can execute against the net8.0 target framework too.
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Restore
         run: dotnet restore

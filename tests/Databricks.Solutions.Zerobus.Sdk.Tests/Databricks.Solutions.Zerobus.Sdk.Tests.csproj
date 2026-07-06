@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <RootNamespace>Databricks.Solutions.Zerobus.Tests</RootNamespace>
     <AssemblyName>Databricks.Solutions.Zerobus.Sdk.Tests</AssemblyName>
     <IsPackable>false</IsPackable>

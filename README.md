@@ -25,7 +25,7 @@
 
 ## Overview
 
-This repository provides a .NET client library for **Databricks Zerobus**, which ingests records directly into Unity Catalog managed Delta tables over gRPC. It is a managed library built on `Grpc.Net.Client` and `Google.Protobuf`, and it supports `net8.0` and `netstandard2.1`.
+This repository provides a .NET client library for **Databricks Zerobus**, which ingests records directly into Unity Catalog managed Delta tables over gRPC. It is a managed library built on `Grpc.Net.Client` and `Google.Protobuf`, and it targets `net10.0`, `net8.0`, and `netstandard2.1`.
 
 The SDK handles the connection, batching, acknowledgments, and reconnection for you, and exposes both a high-level bulk writer and a lower-level single stream.
 
@@ -339,6 +339,28 @@ await using var writer = await sdk.CreateBulkWriterAsync(
 
 For full control, implement `ITokenProvider` directly.
 
+### Azure managed identity (Functions, App Service, VM)
+
+If your code runs on Azure with a **managed identity**, `ManagedIdentityTokenProvider` lets you ingest with no secret. It fetches the managed identity's Entra token and runs the same federation exchange as above. It is dependency-free (no `Azure.Identity`) and reads the identity endpoint directly: the `IDENTITY_ENDPOINT` / `IDENTITY_HEADER` variables that Azure Functions and App Service expose, or the instance metadata service on a VM.
+
+It relies on the same [token federation policy](#microsoft-entra-id-via-token-federation) as above, keyed to the managed identity: set the policy **Subject** to the managed identity's object id (and **Issuer** to `https://login.microsoftonline.com/<tenant-id>/v2.0`).
+
+```csharp
+await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+
+var tokenProvider = new ManagedIdentityTokenProvider(
+    workspaceUrl,
+    ZerobusSdk.WorkspaceIdFromServerEndpoint(serverEndpoint));
+    // For a user-assigned identity, also pass: managedIdentityClientId: "<mi-client-id>"
+
+await using var writer = await sdk.CreateBulkWriterAsync(
+    new TableProperties<SensorReading>("main.telemetry.sensor_readings"), tokenProvider);
+```
+
+> 💡 **Tip:** The `examples/Databricks.Solutions.Zerobus.Examples.Functions` project wires this up behind `ZEROBUS_AUTH_MODE=managed-identity`, so you can deploy it to a Function to see the flow end to end.
+
+This built-in provider covers Azure Functions, App Service, and VMs. For AKS workload identity, Azure Arc, or local development, get the Entra token with `Azure.Identity` (`DefaultAzureCredential`) and pass it to `FederatedTokenProvider` instead.
+
 ## Before you begin
 
 Since you create the table yourself, two things commonly get in the way:
@@ -364,6 +386,8 @@ For custom authentication, implement `ITokenProvider` and pass it in place of th
 10 MB per message and 2,000 columns per table. The bulk writer keeps batches under the message limit for you, and you can scale past a single stream by raising `Parallelism`.
 
 ## Building from source
+
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (pinned in `global.json`). The tests run on both the `net8.0` and `net10.0` target frameworks, so the .NET 8 runtime is also needed to exercise that target.
 
 ```bash
 dotnet build -c Release

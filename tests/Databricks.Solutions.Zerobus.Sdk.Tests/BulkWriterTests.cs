@@ -79,4 +79,26 @@ public class BulkWriterTests
 
         Assert.Equal(27, host.Behavior.TotalRows);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public async Task Non_positive_parallelism_is_clamped_to_a_single_stream(int parallelism)
+    {
+        await using var host = await ZerobusTestHost.StartAsync();
+        await using var sdk = host.CreateSdk();
+
+        // Parallelism/BatchSize/MaxBatchBytes are clamped to >= 1 so a bad config degrades
+        // gracefully instead of producing a zero-stream (unusable) writer.
+        var options = new BulkWriterOptions { Parallelism = parallelism, BatchSize = 0, MaxBatchBytes = 0 };
+        await using var writer = await sdk.CreateBulkWriterAsync(
+            new TableProperties<AirQuality>("main.s.air"), new FakeTokenProvider(), options);
+
+        Assert.Equal(1, writer.Parallelism);
+
+        await writer.WriteAsync(Enumerable.Range(0, 5).Select(i => new AirQuality { DeviceName = $"d{i}", Temp = i }));
+        await writer.FlushAsync();
+
+        Assert.Equal(5, host.Behavior.TotalRows);
+    }
 }
