@@ -95,7 +95,7 @@ In the `Grpc.Tools` reference that `dotnet add package` wrote, add `PrivateAsset
 using Databricks.Solutions.Zerobus;
 using MyApp.Telemetry;
 
-await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+await using var sdk = new ZerobusSdk(zerobusServerEndpoint, workspaceUrl);
 
 await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
@@ -114,11 +114,13 @@ The writer batches and sends the records; `FlushAsync` waits until the server ha
 The connection values come from your workspace:
 
 ```csharp
-var serverEndpoint = "1234567890.zerobus.us-west-2.cloud.databricks.com"; // gRPC endpoint
+var zerobusServerEndpoint = "1234567890.zerobus.us-west-2.cloud.databricks.com"; // Zerobus gRPC endpoint (not the workspace URL)
 var workspaceUrl   = "https://dbc-xxxx.cloud.databricks.com";             // used for OAuth
 var clientId       = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_ID");     // service principal
 var clientSecret   = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_SECRET");
 ```
+
+The Zerobus server endpoint and the workspace URL are two different hosts: `zerobusServerEndpoint` is the gRPC ingest endpoint (starts with your numeric workspace id and contains `.zerobus.`), while `workspaceUrl` is the normal workspace host used for OAuth. The SDK derives the numeric workspace id from the server endpoint for you (`ZerobusSdk.WorkspaceIdFromServerEndpoint`).
 
 ## High-throughput writes
 
@@ -138,12 +140,12 @@ using Databricks.Solutions.Zerobus;
 using MyApp.Telemetry;
 
 // Connection settings come from your own config (env vars here). Same for Databricks-managed and Entra ID SPs.
-var serverEndpoint = Environment.GetEnvironmentVariable("ZEROBUS_SERVER_ENDPOINT")!; // e.g. 1234567890.zerobus.us-west-2.cloud.databricks.com
+var zerobusServerEndpoint = Environment.GetEnvironmentVariable("ZEROBUS_SERVER_ENDPOINT")!; // e.g. 1234567890.zerobus.us-west-2.cloud.databricks.com
 var workspaceUrl   = Environment.GetEnvironmentVariable("DATABRICKS_WORKSPACE_URL")!; // e.g. https://adb-xxxx.azuredatabricks.net
 var clientId       = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_ID")!;     // service principal application (client) id
 var clientSecret   = Environment.GetEnvironmentVariable("DATABRICKS_CLIENT_SECRET")!; // its Databricks OAuth secret
 
-await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+await using var sdk = new ZerobusSdk(zerobusServerEndpoint, workspaceUrl);
 
 var options = new BulkWriterOptions
 {
@@ -310,7 +312,7 @@ This is the default and covers most apps: an OAuth 2.0 client-credentials (machi
 Pass the client id and secret directly (this is the flow used in [Getting started](#getting-started)):
 
 ```csharp
-await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+await using var sdk = new ZerobusSdk(zerobusServerEndpoint, workspaceUrl);
 
 await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
@@ -326,7 +328,7 @@ You can authenticate with a Microsoft Entra ID (Azure AD) service principal in o
 **Option A (recommended): give the Entra SP a Databricks OAuth secret.** Add the Entra ID SP to the workspace and generate a Databricks OAuth secret for it (**Settings, Identity and access, Service principals, Secrets**), then use the exact same client-credentials flow as above. No tenant id is needed, the token request is identical to a Databricks-managed SP, and it is the endpoint Databricks recommends for M2M.
 
 ```csharp
-await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+await using var sdk = new ZerobusSdk(zerobusServerEndpoint, workspaceUrl);
 
 await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
@@ -357,11 +359,11 @@ using Databricks.Solutions.Zerobus;
 
 var credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
 
-await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+await using var sdk = new ZerobusSdk(zerobusServerEndpoint, workspaceUrl);
 
 var tokenProvider = new FederatedTokenProvider(
     workspaceUrl,
-    ZerobusSdk.WorkspaceIdFromServerEndpoint(serverEndpoint),
+    ZerobusSdk.WorkspaceIdFromServerEndpoint(zerobusServerEndpoint),
     subjectTokenProvider: async ct =>
         (await credential.GetTokenAsync(
             new TokenRequestContext(new[] { "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default" }), ct)).Token,
@@ -385,11 +387,11 @@ If your code runs on Azure with a **managed identity**, `ManagedIdentityTokenPro
 - Grant the identity `USE CATALOG` / `USE SCHEMA` / `SELECT` + `MODIFY` on the target table.
 
 ```csharp
-await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+await using var sdk = new ZerobusSdk(zerobusServerEndpoint, workspaceUrl);
 
 var tokenProvider = new ManagedIdentityTokenProvider(
     workspaceUrl,
-    ZerobusSdk.WorkspaceIdFromServerEndpoint(serverEndpoint));
+    ZerobusSdk.WorkspaceIdFromServerEndpoint(zerobusServerEndpoint));
     // For a user-assigned identity, also pass: managedIdentityClientId: "<mi-client-id>"
 
 await using var writer = await sdk.CreateBulkWriterAsync(
