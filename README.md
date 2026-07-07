@@ -16,7 +16,10 @@
 - [Using the SDK in a service](#using-the-sdk-in-a-service)
 - [Working with a single stream](#working-with-a-single-stream)
 - [Authentication](#authentication)
-  - [Microsoft Entra ID via token federation](#microsoft-entra-id-via-token-federation)
+  - [Databricks service principal (client credentials)](#databricks-service-principal-client-credentials)
+  - [Microsoft Entra ID service principal (client credentials)](#microsoft-entra-id-service-principal-client-credentials)
+  - [Azure managed identity (Functions, App Service, VM)](#azure-managed-identity-functions-app-service-vm)
+  - [Supplying your own token](#supplying-your-own-token)
 - [Before you begin](#before-you-begin)
 - [Limits](#limits)
 - [Building from source](#building-from-source)
@@ -281,17 +284,59 @@ A record is stored once the call that waits on it (`WaitForOffsetAsync` or `Flus
 
 ## Authentication
 
-The SDK authenticates with a Databricks service principal over OAuth (machine to machine). The examples above pass the service principal's client ID and secret, which is all most apps need.
+Zerobus needs a Databricks OAuth token that is scoped to the target table and issued by the workspace endpoint (`{workspaceUrl}/oidc/v1/token`). A raw Entra ID token from `login.microsoftonline.com` is **not** accepted directly. The SDK ships a token provider for each supported credential, and every provider caches the token and refreshes it shortly before expiry.
 
-This works for both **Databricks-managed** and **Microsoft Entra ID** service principals. The simplest path for an Entra ID service principal is to add it to the workspace and generate a Databricks OAuth secret (Settings, Identity and access, Service principals, Secrets), then pass the application (client) ID and that secret. No tenant id is needed, the token request is the same as a Databricks-managed SP, and it's the endpoint Databricks recommends for M2M.
+Pick the method that matches where your code runs:
 
-A raw Entra ID token (from `login.microsoftonline.com`) is not accepted directly. Zerobus needs a token issued by the Databricks workspace endpoint, scoped to the Zerobus resource, so the Databricks OAuth secret above is the path to use.
+| Method | When to use | Provider |
+| --- | --- | --- |
+| [Databricks service principal](#databricks-service-principal-client-credentials) | Default. A Databricks-managed SP with a client id and secret. | built in (pass `clientId`, `clientSecret`) |
+| [Microsoft Entra ID service principal](#microsoft-entra-id-service-principal-client-credentials) | You authenticate with an Entra ID (Azure AD) SP. | built in, or `FederatedTokenProvider` |
+| [Azure managed identity](#azure-managed-identity-functions-app-service-vm) | Code runs on Azure (Functions, App Service, VM) with no secret to manage. | `ManagedIdentityTokenProvider` |
+| [Your own token](#supplying-your-own-token) | You already have a Databricks token from another flow. | `DelegatingTokenProvider` / `ITokenProvider` |
 
-### Microsoft Entra ID via token federation
+Whatever the method, the service principal or identity needs `USE CATALOG`, `USE SCHEMA`, and `SELECT` + `MODIFY` on the target table (see [Before you begin](#before-you-begin)).
 
-If you can't issue a Databricks OAuth secret for the service principal, authenticate the Entra ID SP through [Databricks token federation](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/auth/oauth-federation-exchange). You get an Entra token; `FederatedTokenProvider` exchanges it at the workspace endpoint for a Zerobus-scoped Databricks token. No Databricks secret is stored.
+### Databricks service principal (client credentials)
 
-**One-time setup (account admin):** create a federation policy so Databricks trusts the SP's Entra tokens.
+This is the default and covers most apps: an OAuth 2.0 client-credentials (machine-to-machine) flow with a Databricks-managed service principal.
+
+**Setup:**
+
+1. Create a service principal: account console (or workspace) **Settings, Identity and access, Service principals, Add service principal**.
+2. Generate an OAuth secret for it: the SP's **Secrets, Generate secret**. Copy the **client ID** (application ID) and **secret**.
+3. Grant the SP `USE CATALOG` / `USE SCHEMA` / `SELECT` + `MODIFY` on the target table.
+
+Pass the client id and secret directly (this is the flow used in [Getting started](#getting-started)):
+
+```csharp
+await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+
+await using var writer = await sdk.CreateBulkWriterAsync(
+    new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
+    clientId, clientSecret);
+```
+
+Under the hood this uses `OAuthTokenProvider`, which requests the table-scoped token with HTTP Basic auth. You can construct it yourself if you want to share one provider across streams.
+
+### Microsoft Entra ID service principal (client credentials)
+
+You can authenticate with a Microsoft Entra ID (Azure AD) service principal in one of two ways.
+
+**Option A (recommended): give the Entra SP a Databricks OAuth secret.** Add the Entra ID SP to the workspace and generate a Databricks OAuth secret for it (**Settings, Identity and access, Service principals, Secrets**), then use the exact same client-credentials flow as above. No tenant id is needed, the token request is identical to a Databricks-managed SP, and it is the endpoint Databricks recommends for M2M.
+
+```csharp
+await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
+
+await using var writer = await sdk.CreateBulkWriterAsync(
+    new TableProperties<SensorReading>("main.telemetry.sensor_readings"),
+    clientId,       // the Entra SP application (client) id
+    clientSecret);  // the Databricks OAuth secret you generated above
+```
+
+**Option B: token federation (no Databricks secret).** If you can't or don't want to issue a Databricks OAuth secret, authenticate the Entra SP with its own Entra client secret and let Databricks exchange it via [token federation](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/auth/oauth-federation-exchange). You get an Entra token; `FederatedTokenProvider` exchanges it (RFC 8693) at the workspace endpoint for a Zerobus-scoped Databricks token, and no Databricks secret is stored.
+
+One-time setup (account admin): create a federation policy so Databricks trusts the SP's Entra tokens.
 
 1. In the account console, go to **User management, Service principals, your SP, Credentials & secrets, Federation policies, Create policy** (or run `databricks account service-principal-federation-policy create`).
 2. Set:
@@ -326,24 +371,18 @@ await using var writer = await sdk.CreateBulkWriterAsync(
     new TableProperties<SensorReading>("main.telemetry.sensor_readings"), tokenProvider);
 ```
 
-The provider does the RFC 8693 token exchange and refreshes as needed. If you'd rather not add `Azure.Identity`, your `subjectTokenProvider` can POST to `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` (grant_type `client_credentials`, scope `2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default`) and return the `access_token`.
-
-If you'd rather supply the token from your own flow (Azure.Identity, a managed identity, the Databricks SDK, or a token you already hold), use `DelegatingTokenProvider` in place of the client id and secret:
-
-```csharp
-var tokenProvider = new DelegatingTokenProvider(ct => GetMyDatabricksTokenAsync(ct));
-
-await using var writer = await sdk.CreateBulkWriterAsync(
-    new TableProperties<SensorReading>("main.telemetry.sensor_readings"), tokenProvider);
-```
-
-For full control, implement `ITokenProvider` directly.
+The provider does the token exchange and refreshes as needed. If you'd rather not add `Azure.Identity`, your `subjectTokenProvider` can POST to `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` (grant_type `client_credentials`, scope `2ff814a6-3304-4ab8-85cb-cd0e6f879c1d/.default`) and return the `access_token`.
 
 ### Azure managed identity (Functions, App Service, VM)
 
-If your code runs on Azure with a **managed identity**, `ManagedIdentityTokenProvider` lets you ingest with no secret. It fetches the managed identity's Entra token and runs the same federation exchange as above. It is dependency-free (no `Azure.Identity`) and reads the identity endpoint directly: the `IDENTITY_ENDPOINT` / `IDENTITY_HEADER` variables that Azure Functions and App Service expose, or the instance metadata service on a VM.
+If your code runs on Azure with a **managed identity**, `ManagedIdentityTokenProvider` lets you ingest with no secret. It fetches the managed identity's Entra token and runs the same federation exchange as [Option B](#microsoft-entra-id-service-principal-client-credentials) above. It is dependency-free (no `Azure.Identity`) and reads the identity endpoint directly: the `IDENTITY_ENDPOINT` / `IDENTITY_HEADER` variables that Azure Functions and App Service expose, or the instance metadata service on a VM.
 
-It relies on the same [token federation policy](#microsoft-entra-id-via-token-federation) as above, keyed to the managed identity: set the policy **Subject** to the managed identity's object id (and **Issuer** to `https://login.microsoftonline.com/<tenant-id>/v2.0`).
+**Setup:** create the same kind of token-federation policy as Option B, but keyed to the managed identity:
+
+- **Issuer:** `https://login.microsoftonline.com/<tenant-id>/v2.0`
+- **Audience:** `2ff814a6-3304-4ab8-85cb-cd0e6f879c1d` (the Azure Databricks application id)
+- **Subject:** the managed identity's object (principal) id
+- Grant the identity `USE CATALOG` / `USE SCHEMA` / `SELECT` + `MODIFY` on the target table.
 
 ```csharp
 await using var sdk = new ZerobusSdk(serverEndpoint, workspaceUrl);
@@ -360,6 +399,19 @@ await using var writer = await sdk.CreateBulkWriterAsync(
 > 💡 **Tip:** The `examples/Databricks.Solutions.Zerobus.Examples.Functions` project wires this up behind `ZEROBUS_AUTH_MODE=managed-identity`, so you can deploy it to a Function to see the flow end to end.
 
 This built-in provider covers Azure Functions, App Service, and VMs. For AKS workload identity, Azure Arc, or local development, get the Entra token with `Azure.Identity` (`DefaultAzureCredential`) and pass it to `FederatedTokenProvider` instead.
+
+### Supplying your own token
+
+If you already obtain a Databricks token from another flow (the Databricks SDK, a token you hold, or a credential type not covered above), wrap it in `DelegatingTokenProvider` and pass that in place of the client id and secret:
+
+```csharp
+var tokenProvider = new DelegatingTokenProvider(ct => GetMyDatabricksTokenAsync(ct));
+
+await using var writer = await sdk.CreateBulkWriterAsync(
+    new TableProperties<SensorReading>("main.telemetry.sensor_readings"), tokenProvider);
+```
+
+For full control, implement `ITokenProvider` directly.
 
 ## Before you begin
 

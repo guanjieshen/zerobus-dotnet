@@ -130,6 +130,47 @@ public class ManagedIdentityTokenProviderTests
         Assert.Equal(1, exchangeCalls);
     }
 
+    [Fact]
+    public async Task Throws_auth_exception_when_the_identity_endpoint_fails()
+    {
+        var handler = new StubHandler(req =>
+        {
+            if (IsExchange(req)) return Task.FromResult(Json(new { access_token = "databricks-tok", expires_in = 3600 }));
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)
+            {
+                Content = new StringContent("{\"error\":\"invalid_request\",\"error_description\":\"Identity not found\"}"),
+            });
+        });
+
+        using var http = new HttpClient(handler);
+        using var provider = new ManagedIdentityTokenProvider(
+            "https://adb-123.8.azuredatabricks.net", "123",
+            identityHttpClient: http, exchangeHttpClient: http,
+            identityEndpoint: "http://localhost/msi/token", identityHeader: "secret-abc");
+
+        var ex = await Assert.ThrowsAsync<ZerobusAuthException>(() => provider.GetTokenAsync("main.s.t", default));
+        Assert.Contains("Managed-identity token request failed", ex.Message);
+    }
+
+    [Fact]
+    public async Task Throws_auth_exception_when_the_identity_response_has_no_access_token()
+    {
+        var handler = new StubHandler(req =>
+        {
+            if (IsExchange(req)) return Task.FromResult(Json(new { access_token = "databricks-tok", expires_in = 3600 }));
+            return Task.FromResult(Json(new { token_type = "Bearer", expires_in = "3600" }));
+        });
+
+        using var http = new HttpClient(handler);
+        using var provider = new ManagedIdentityTokenProvider(
+            "https://adb-123.8.azuredatabricks.net", "123",
+            identityHttpClient: http, exchangeHttpClient: http,
+            identityEndpoint: "http://localhost/msi/token", identityHeader: "secret-abc");
+
+        var ex = await Assert.ThrowsAsync<ZerobusAuthException>(() => provider.GetTokenAsync("main.s.t", default));
+        Assert.Contains("did not contain an access_token", ex.Message);
+    }
+
     private static bool IsExchange(HttpRequestMessage req) =>
         req.RequestUri!.AbsolutePath.Contains("oidc");
 

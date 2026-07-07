@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-07
+
+First release under the `Databricks.Solutions.Zerobus.Sdk` package id (renamed from
+`Databricks.Zerobus.Sdk`), adding .NET 10 support and Azure managed-identity authentication.
+
 ### Added
 - Initial release of the pure-managed Zerobus .NET SDK.
 - `ZerobusSdk` entry point with reusable gRPC channel and OAuth M2M authentication.
